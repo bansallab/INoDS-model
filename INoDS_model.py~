@@ -237,7 +237,7 @@ def start_nbda(data,  recovery_prob,  priors,  niter, nburn, verbose, diagnosis_
 
 	if verbose: print ("Number of dimension"), ndim
 	
-	nwalkers = max(50, 2*ndim) # number of MCMC walkers
+	nwalkers = max(20, 2*ndim) # number of MCMC walkers
 
 	####################### 
 	##Adjust temperature ladder

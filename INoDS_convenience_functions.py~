@@ -35,6 +35,7 @@ def create_dynamic_network(filename, normalize_edge_weight):
 			else: norm_wt = wt
 			G[time1][node1][node2]["weight"] = norm_wt
 
+	check_edge_weights(G)
 
 	return G
 #######################################################################

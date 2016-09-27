@@ -285,7 +285,7 @@ def start_nbda(data,  recovery_prob,  priors,  niter, nburn, verbose, diagnosis_
 	else: 
 		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob), threads=4) 
 	
-	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations=10)):
+	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations=1)):
 		print("burnin progress"), (100 * float(i) /50)
 		
 		

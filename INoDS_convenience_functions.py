@@ -113,7 +113,7 @@ def randomize_network(G1):
 
 	jaccard = calculate_mean_temporal_jaccard(G1, G2)
 	if jaccard > 0.4: print ("Warning!! Randomized network resembles empircal network. May lead to inconsistent evidence")
-	print ("random graph check"), jaccard
+	#print ("random graph check"), jaccard
 			
 	return G2 
 #######################################################################	
@@ -128,6 +128,7 @@ def stitch_health_data(health_data):
 			time1 = timelist[num-1]
 			if health_data[node][time1]==health_data[node][time2]:
 				for step in range(time1+1, time2): health_data[node][step] = health_data[node][time2]
+	
 	
 	return health_data	
 #######################################################################
@@ -148,8 +149,11 @@ def extract_health_data(filename, nodelist, diagnosis_lag=False):
 			timestep = int(row[1])
 			diagnosis = int(row[2])
 			if node in nodelist:health_data[node][timestep] = diagnosis
+			
 
 	if diagnosis_lag: health_data = stitch_health_data(health_data)
+	#for node in health_data.keys():
+	#	print ("check healthdata"), node, 0 in health_data[node].keys()
 
 	node_health = {}
 	for node in health_data.keys():
@@ -162,6 +166,7 @@ def extract_health_data(filename, nodelist, diagnosis_lag=False):
 		
 		if len(healthy_list_tort)>0:
 			healthy_list_tort = sorted(healthy_list_tort)
+			#if 0 in healthy_list_tort: print ("no!!!"), node, healthy_list_tort
 			node_health[node][0] = select_healthy_time(healthy_list_tort, node, health_data)
 			
 				
@@ -182,9 +187,11 @@ def select_healthy_time(healthy_list_tort, node, health_data):
 	healthy_times = []
 	#min time = if the time was first ever report or the prior report was sick
 	#min date = if there was (any report before focal date AND the report was sick) OR there was no report before the day
-	min_date = [time for time in healthy_list_tort if (len([val for key, val in health_data[node].items() if key<time])>0 and max([val for key, val in health_data[node].items() if key<time])==1) or len([val for key, val in health_data[node].items() if key<time])==0]
+	min_date = [time for time in healthy_list_tort if (len([val for key, val in health_data[node].items() if key<time])>0 and health_data[node][max([key for key in health_data[node] if key < time])]==1) or len([val for key, val in health_data[node].items() if key<time])==0]
+	
 	#max_date - if there was (any report after focal date AND the report was sick) OR there was no report after the day
-	max_date = [time for time in healthy_list_tort if  (len([val for key, val in health_data[node].items() if key> time])>0 and min([val for key, val in health_data[node].items() if key>time])==1) or len([val for key, val in health_data[node].items() if key>time])==0]
+	max_date = [time for time in healthy_list_tort if (len([val for key, val in health_data[node].items() if key> time])>0 and health_data[node][min([key for key in health_data[node] if key > time])]==1) or len([val for key, val in health_data[node].items() if key>time])==0]
+	
 	min_date = sorted(min_date)
 	max_date = sorted(max_date)
 	for day1, day2 in zip(min_date, max_date): healthy_times.append((day1, day2))

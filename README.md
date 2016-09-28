@@ -12,7 +12,7 @@ Requirements for directly running the source code
 ================================================
 * [Python  2.7](http://python.org/)
 * [Emcee 2.1.0] (http://dan.iel.fm/emcee/)
-* [networkx    1.11](https://networkx.github.io/)
+* [Networkx    1.11](https://networkx.github.io/)
 * [Corner 2.0.1] (https://pypi.python.org/pypi/corner/)
 
 

@@ -6,7 +6,6 @@ import numpy as np
 from numpy import ma
 from emcee import PTSampler, autocorr
 import corner
-import time as tm
 import copy
 import matplotlib.pyplot as plt
 import random as rnd

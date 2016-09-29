@@ -116,7 +116,6 @@ def randomize_network(G1):
 	#print ("random graph check"), jaccard
 			
 	return G2 
-#######################################################################	
 #######################################################################		
 def stitch_health_data(health_data):
 	""" Fill in time steps with same infection status"""
@@ -204,12 +203,12 @@ def select_sick_times(sick_list_tort, node, health_data):
 
 
 	sick_times = []
-	min_date = [time for time in sick_list_tort if (len([val for key, val in health_data[node].items() if key<time])>0 and max([val for key, val in health_data[node].items() if key<time])==0) or len([val for key, val in health_data[node].items() if key<time])==0]
-	max_date = [time for time in sick_list_tort if (len([val for key, val in health_data[node].items() if key> time])>0 and min([val for key, val in health_data[node].items() if key>time])==0) or len([val for key, val in health_data[node].items() if key>time])==0]
+	min_date = [time for time in sick_list_tort if (len([val for key, val in health_data[node].items() if key<time])>0 and health_data[node][max([key for key in health_data[node] if key < time])]==0) or len([val for key, val in health_data[node].items() if key<time])==0]
+	max_date = [time for time in sick_list_tort if (len([val for key, val in health_data[node].items() if key> time])>0 and health_data[node][min([key for key in health_data[node] if key > time])]==0) or len([val for key, val in health_data[node].items() if key>time])==0]
 	min_date = sorted(min_date)
 	max_date = sorted(max_date)
+	
 	for day1, day2 in zip(min_date, max_date): sick_times.append((day1, day2))
-
 	return sick_times
 
 #########################################################################

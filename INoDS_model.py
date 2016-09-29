@@ -353,11 +353,11 @@ def find_aggregate_timestep(health_data):
 	return list(set(timelist))[0]
 	
 ######################################################################33
-def run_nbda_analysis(edge_filename, health_filename, output_filename, nodelist,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True,**kwargs):
+def run_nbda_analysis(edge_filename, health_filename, output_filename, infection_type, nodelist,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True,**kwargs):
 	"""Main function for NBDA """
 	
 	####################
-	health_data, node_health = nf.extract_health_data(health_filename, nodelist)
+	health_data, node_health = nf.extract_health_data(health_filename, infection_type,  nodelist)
 	seed_date = nf.find_seed_date(node_health)
 	time_min = 0
 	time_max = max([key for node in health_data.keys() for key in health_data[node].keys()])

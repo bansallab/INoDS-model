@@ -185,8 +185,8 @@ def select_healthy_time(healthy_list_tort, node, health_data, infection_type):
 
 	healthy_times = []
 	
-
-	if infection_type=="SIR":
+	#if SIR type of infection
+	if infection_type[-1].lower()=='r':
 		min_date = [time for time in healthy_list_tort if len([val for key, val in health_data[node].items() if key<time])==0]
 		
 	else: 
@@ -199,6 +199,7 @@ def select_healthy_time(healthy_list_tort, node, health_data, infection_type):
 	
 	min_date = sorted(min_date)
 	max_date = sorted(max_date)
+	
 	for day1, day2 in zip(min_date, max_date): healthy_times.append((day1, day2))
 	return healthy_times
 	
@@ -338,20 +339,20 @@ def compute_diagnosis_lag_truth(graph, contact_datelist, filename):
 	return lag_truths
 
 ######################################################333
-def plot_beta_results(sampler, nburn, filename):
+def plot_beta_results(sampler, filename):
 
         fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(15, 6))
-        ax1.plot(sampler.chain[0, :, nburn:, 0].T, color="k", lw=0.1)
-        ax1.set_ylabel("Walker positions for $\mu$")
+        ax1.plot(sampler.chain[0, :, :, 0].T, color="k", lw=0.1)
+        ax1.set_ylabel("Walker positions for $beta$")
         ax1.set_xlabel("Simulation step")
         
     
-        samples = sampler.chain[0, :, nburn:, 0].reshape((-1, 1))
+        samples = sampler.chain[0, :, :, 0].reshape((-1, 1))
 
         ax2.hist(samples, bins=50, histtype="step", normed=True, label="posterior", color="k", linewidth=2)
         ax2.axvline(0.045, label="data point", color="r")
         ax2.legend(frameon=False, loc="best")
-        ax2.set_xlabel("$\mu$ posterior")
+        ax2.set_xlabel("$beta$ posterior")
         
  	plt.tight_layout()
         plt.savefig(filename)

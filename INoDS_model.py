@@ -38,7 +38,7 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 	##impute true infection date and recovery date (if SIR/SIRS...)
 	## infection_date = date picked as a day between last healthy report and first sick report
 	## and when the degree of node was >0 the previous day
-	##recovery_date = date picked as date with uniform probability between first reported sick day and first 
+	##recovery_date = date picked as day with uniform probability between first reported sick day and first 
 	##healthy date after sick report
 	
 	infection_date = []
@@ -128,24 +128,23 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param):
 	
 
 #####################################################################
-def autocor_checks(sampler, burnin, itemp=0, outfile=None):
+def autocor_checks(sampler, itemp=0, outfile=None):
     
-	print('Chains contain samples ='), sampler.chain.shape[-2]
-    	print('Specified burn-in is samples'), burnin
-	a_exp = sampler.acor[0]
-	a_int = np.max([autocorr.integrated_time(sampler.chain[itemp, i, burnin:]) for i in range(sampler.chain.shape[1])], 0)
+	""" Perform autocorrelation checks"""
+	print('Chains contain samples (after burnin)='), sampler.chain.shape[-2]
+    	a_exp = sampler.acor[0]
+	a_int = np.max([autocorr.integrated_time(sampler.chain[itemp, i, :]) for i in range(sampler.chain.shape[1])], 0)
 	a_exp = max(a_exp)
 	a_int = max(a_int)
-	print('A reasonable burn-in should be around steps'), int(10 * a_exp)
+	print('Additional burn-in required'), int(10 * a_exp)
 	print('After burn-in, each chain produces one independent sample per steps ='), int(a_int)
 	return a_exp, a_int
 
 #####################################################################
-def log_evidence(sampler, burnin, outfile=None):
+def log_evidence(sampler):
 
-	#(10, 196, 1)
-
-	logls = sampler.lnlikelihood[:, :, burnin:]
+	""" Calculate log evidence and error"""
+	logls = sampler.lnlikelihood[:, :, :]
 	logls = ma.masked_array(logls, mask=logls == -np.inf)
 	
 	mean_logls = logls.mean(axis=-1).mean(axis=-1)
@@ -156,16 +155,17 @@ def log_evidence(sampler, burnin, outfile=None):
 
 #####################################################################
 
-def flatten_with_burn(sampler, burnin):
+def flatten_chain(sampler):
+    """Flatten zero temperature chain"""
     c = sampler.chain
-    c = c[0,:, burnin:]
+    c = c[0,:, :]
     ct = c.reshape((np.product(c.shape[:-1]), c.shape[-1]))
     return c.reshape((np.product(c.shape[:-1]), c.shape[-1]))
 
 #######################################################################
 def summary(samples):
 
-    #print signal.find_peaks_cwt(samples[:,0], np.arange(0,0.5))
+  
     mean = samples.mean(0)
     mean = [round(num,3) for num in mean]
     sigma = samples.std(0)
@@ -236,9 +236,9 @@ def start_nbda(data, recovery_prob, priors,  niter, nburn, verbose, diagnosis_la
 	#######################
 	if verbose:print ("true likelihood value"), log_likelihood(np.array(true_value), data, null_comparison, diagnosis_lag,recovery_prob, nsick_param)
 	
-	####################### 
-	###set starting positions
-	#######################
+	########################################### 
+	###set starting positions for the walker
+	#############################################
 	starting_guess = np.zeros((ntemps, nwalkers, ndim))
 	##starting guess for beta  
 	starting_guess[:, :, 0] = np.random.uniform(low = priors[0][0], high = priors[0][1], size=(ntemps, nwalkers))
@@ -260,19 +260,20 @@ def start_nbda(data, recovery_prob, priors,  niter, nburn, verbose, diagnosis_la
 	else: 
 		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob)) 
 	
-	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations=50)):
-		print("burnin progress"), (100 * float(i) /50)
+	#Run user-specified burnin
+	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = nburn)): 
+		if verbose:print("burnin progress"), (100 * float(i) / niter)
+		else: pass
 		
-		
-		
-
+	# Reset the chain to remove the burn-in samples
 	sampler.reset()	
 	
 	#################################
 	print ("sampling........")
 	nthin = 1
 	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(p, lnprob0 = lnprob,  lnlike0= lnlike, iterations= niter, thin= nthin)):  
-		print("sampling progress"), (100 * float(i) / niter)
+		if verbose:print("sampling progress"), (100 * float(i) / niter)
+		else: pass
 		
 		
 	##############################
@@ -288,29 +289,22 @@ def getstate(sampler):
 	return self_dict
 
 ##############################################################################################
-def summarize_sampler(sampler, G_raw, nburn, true_value, output_filename, summary_type):
+def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type):
 
 
-	# Longest autocorrelation length (over any temperature)
-	#max_acl = np.max(sampler.acor)	
-	#if verbose: print ("Longest autocorrelation length (over any temperature)"), max_acl
-	print ("Mean burnin acceptance fraction is"),  np.mean(sampler.acceptance_fraction)
-
-	##save chain
 	if summary_type =="parameter_estimate":
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
 		fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
-		nf.plot_beta_results(sampler, nburn, filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
-		logz, logzerr = log_evidence(sampler, nburn)
+		nf.plot_beta_results(sampler, filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
+		logz, logzerr = log_evidence(sampler)
 		print ("Model evidence and error"), logz, logzerr
 			
 	stats={}
-	samples = flatten_with_burn(sampler, nburn)
-	stats['mean'], stats['sigma'] = summary(samples)
-	try:stats['a_exp'], stats['a_int'] = autocor_checks(sampler, nburn)
+	samples = flatten_chain(sampler)
+	try:stats['a_exp'], stats['a_int'] = autocor_checks(sampler)
 	except: print ("Warning!! Autocorrelation checks could not be performed. Sampler chains may be too short")        
-	##plot results
+	
 	
 	#################################
 	if summary_type =="null_comparison":

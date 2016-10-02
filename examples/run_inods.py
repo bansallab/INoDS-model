@@ -40,8 +40,10 @@ truth = [0.045, 0, 0.01]
 recovery_prob = np.inf
 
 ##specify chain length and burn-in
-iteration = 1000
 burnin = 750
+#number of iterations after burnin
+iteration = 1000
+
 
 ## minor specfications
 verbose=True

@@ -256,13 +256,13 @@ def start_nbda(data, recovery_prob, priors,  niter, nburn, verbose, diagnosis_la
 	####################################
 	if verbose: print ("burn in......")
 	if diagnosis_lag: 
-		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, null_comparison, diagnosis_lag, recovery_prob,  nsick_param, contact_daylist), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param , recovery_prob)) 
+		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, null_comparison, diagnosis_lag, recovery_prob,  nsick_param, contact_daylist), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param , recovery_prob), threads=2) 
 	else: 
-		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob)) 
+		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob), threads=2) 
 	
 	#Run user-specified burnin
 	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = nburn)): 
-		if verbose:print("burnin progress"), (100 * float(i) / niter)
+		if verbose:print("burnin progress"), (100 * float(i) / nburn)
 		else: pass
 		
 	# Reset the chain to remove the burn-in samples
@@ -290,7 +290,6 @@ def getstate(sampler):
 
 ##############################################################################################
 def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type):
-
 
 	if summary_type =="parameter_estimate":
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
@@ -364,7 +363,8 @@ def run_nbda_analysis(edge_filename, health_filename, output_filename, infection
 	data1 = [G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date]
 	print ("estimating model parameters.........................")
 	sampler  = start_nbda(data1,  recovery_prob, priors,  iteration, burnin, verbose, diagnosis_lag=False, null_comparison=False)
-	summarize_sampler(sampler, G_raw, burnin, true_value, output_filename, summary_type = "parameter_estimate")
+	summary_type = "parameter_estimate"
+	summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	####################
 
 	print ("generating null graphs.......")
@@ -375,17 +375,11 @@ def run_nbda_analysis(edge_filename, health_filename, output_filename, infection
 	data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date]
 	print ("comparing network hypothesis with null............................")
 	sampler = start_nbda(data1, recovery_prob, priors,  iteration, burnin, verbose, diagnosis_lag=False, null_comparison=True, null_networks=null_networks)
-	summarize_sampler(sampler, G_raw, burnin, true_value, output_filename, summary_type = "null_comparison")
+	summary_type = "null_comparison"
+	summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	
 	
-	#for trial in xrange(5):
-	#	print ("running permuted network")
-	#	G1_raw = {}
-	#	G1_raw[0] =  nf.permute_network(G_raw[0], 0.4)
-	#	data1 = [G1_raw, health_data, node_health, nodelist, null_comparison, diagnosis_lag, time_min, time_max, seed_date]
-	#	lnZ_mod1, err_mod1 = start_nbda(data1, priors,  iteration, burnin, verbose, null_networks=null_networks)
-	#	print('estimated evidence & error NULL MODEL = '),trial, lnZ_mod1, err_mod1
-	
+		
 ######################################################################33
 if __name__ == "__main__":
 

@@ -1,9 +1,9 @@
 import sys
 import os
-parentdir = os.path.dirname(currentdir)
-sys.path.insert(0,parentdir) 
+sys.path = [os.path.abspath(os.path.join(__file__, '..', '..')), ] + sys.path
 import INoDS_model as inods
 import numpy as np
+import time
 ##################################################
 ## NOTE: INoDS requires the network and health data to be formatted in
 ## a specific manner. Check example files.
@@ -39,10 +39,11 @@ truth = [0.045, 0, 0.01]
 #Can nodes recover? If no, set recovery prob to np.inf. If yes, specify prior 
 recovery_prob = np.inf
 
+infection_type = "SI"
 ##specify chain length and burn-in
-burnin = 750
+burnin = 200
 #number of iterations after burnin
-iteration = 1000
+iteration = 500
 
 
 ## minor specfications
@@ -52,4 +53,8 @@ normalize_edge_weight= False
 #####################################
 #### run INoDS 
 ######################################
-inods.run_nbda_analysis(edge_filename, health_filename, output_filename, nodelist, recovery_prob, truth, null_networks, priors, iteration, burnin, diagnosis_lag=False, null_comparison=True)
+start = time.time()
+inods.run_nbda_analysis(edge_filename, health_filename, output_filename, infection_type, nodelist, recovery_prob, truth, null_networks, priors, iteration, burnin, diagnosis_lag=False, null_comparison=True)
+
+end = time.time()
+print ("total run time="), end-start

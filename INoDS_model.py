@@ -371,12 +371,12 @@ def run_nbda_analysis(edge_filename, health_filename, output_filename, infection
 	if null_comparison:
 		for num in xrange(null_networks):G_raw[num+1] = nf.randomize_network(G_raw[0])
 	
-	true_value = truth
-	data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date]
-	print ("comparing network hypothesis with null............................")
-	sampler = start_nbda(data1, recovery_prob, priors,  iteration, burnin, verbose, diagnosis_lag=False, null_comparison=True, null_networks=null_networks)
-	summary_type = "null_comparison"
-	summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
+		true_value = truth
+		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date]
+		print ("comparing network hypothesis with null............................")
+		sampler = start_nbda(data1, recovery_prob, priors,  iteration, burnin, verbose, diagnosis_lag=False, null_comparison=True, null_networks=null_networks)
+		summary_type = "null_comparison"
+		summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	
 	
 		

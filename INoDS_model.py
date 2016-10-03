@@ -367,8 +367,9 @@ def run_nbda_analysis(edge_filename, health_filename, output_filename, infection
 	summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	####################
 
-	print ("generating null graphs.......")
+	
 	if null_comparison:
+		print ("generating null graphs.......")
 		for num in xrange(null_networks):G_raw[num+1] = nf.randomize_network(G_raw[0])
 	
 		true_value = truth

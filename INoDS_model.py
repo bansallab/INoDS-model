@@ -20,18 +20,22 @@ np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 #######################################################################
-def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, **kwargs):
+def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, recovery_daylist, null_comparison_data):
 	
-	logmin = 100000000
-	G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date  =data	
-	p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param)
-	health_data_new = copy.deepcopy(health_data)
-	node_health_new = copy.deepcopy(node_health)
 	if null_comparison:
+		G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date,parameter_estimate = data
+		health_data_new = copy.deepcopy(health_data)
+		node_health_new = copy.deepcopy(node_health)
+		
+		p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)
 		network = int(ss.randint.ppf(p['model'][0], 0,  len(G_raw)))
 		#assing network
 		G = G_raw[network]
 	else:
+		G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date  = data
+		health_data_new = copy.deepcopy(health_data)
+		node_health_new = copy.deepcopy(node_health)
+		p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)
 		network=0 
 		G= G_raw[0]
 	##########################################diagnosis lag
@@ -86,8 +90,9 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 
 	##############################
 	loglike = sum(overall_learn) + sum(overall_not_learn)
-	#if loglike > -400 or int(ss.randint.ppf(p['model'][0], 0,  len(G_raw))) ==0: print loglike, p['beta'][0], p['alpha'][0], p['model'][0], len(G_raw), int(ss.randint.ppf(p['model'][0], 0,  len(G_raw)))
-	if loglike == -np.inf or np.isnan(loglike): return -np.inf
+	#if int(ss.randint.ppf(p['model'][0], 0,  len(G_raw)))==0:print loglike, p['beta'][0], p['alpha'][0], p['model'][0], len(G_raw), int(ss.randint.ppf(p['model'][0], 0,  len(G_raw)))
+	
+	if loglike == -np.inf or np.isnan(loglike):return -np.inf
 	else: return loglike
 
 ###############################################################################
@@ -102,26 +107,42 @@ def infected_strength(node, time1, health_data_new, G):
 	return sum(strength)
 
 ################################################################################
-def to_params(arr, null_comparison, diagnosis_lag, nsick_param):
+def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data):
 	r""" Converts a numpy array into a array with named fields"""
-	
-	if diagnosis_lag and null_comparison: 
-		return arr.view(np.dtype([('beta', np.float),
+		
+	# Note gamma is estimated only when there is a diagnosis lag
+	if diagnosis_lag and recovery_prob!=np.inf: 
+		if null_comparison: 
+			arr = np.array(null_comparison_data + list(arr))
+			return arr.view(np.dtype([('beta', np.float),
 			('alpha', np.float),
 			('gamma', np.float),
 			('diag_lag', np.float, nsick_param),
 			('model', np.float)]))
-
-	elif null_comparison:
-		return arr.view(np.dtype([('beta', np.float),
-			('alpha', np.float),
-			('model', np.float)]))
 	
-	elif diagnosis_lag: 
 		return arr.view(np.dtype([('beta', np.float),
 			('alpha', np.float),
 			('gamma', np.float),
 			('diag_lag', np.float, nsick_param)]))
+
+	elif diagnosis_lag:
+		if null_comparison: 
+			arr = np.array(null_comparison_data + list(arr))
+			return arr.view(np.dtype([('beta', np.float),
+			('alpha', np.float),
+			('diag_lag', np.float, nsick_param),
+			('model', np.float)])) 
+	
+		return arr.view(np.dtype([('beta', np.float),
+			('alpha', np.float),
+			('diag_lag', np.float, nsick_param)])) 
+	
+
+	if null_comparison: 
+			arr = np.array(null_comparison_data + list(arr))
+			return arr.view(np.dtype([('beta', np.float), 
+			('alpha', np.float),
+			('model', np.float)]))
 			
 	return arr.view(np.dtype([('beta', np.float), 
 			('alpha', np.float)]))
@@ -170,95 +191,82 @@ def summary(samples):
     mean = [round(num,3) for num in mean]
     sigma = samples.std(0)
     sigma = [round(num,3) for num in sigma]
-    return mean, sigma
+    return mean
 
 ##############################################################################
-def log_prior(parameters, priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob):
+def log_prior(parameters, priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data):
     
-    p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param)
-    if p['beta'][0] <  priors[0][0] or p['beta'][0] > priors[0][1]: return -np.inf
-    if p['alpha'][0] < priors[1][0]  or  p['alpha'][0] >  priors[1][1]: return -np.inf 
- 
-    if diagnosis_lag: 
-	if (p['diag_lag'][0] < 0.000001).any() or (p['diag_lag'][0] > 1).any():return -np.inf
-	if recovery_prob != np.inf:
-		if p['gamma'][0] < recovery_prob[0]  or  p['gamma'][0] >  recovery_prob[1]: return -np.inf 
-
+    p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)
     if null_comparison:
 	if p['model'][0] < 0.000001  or  p['model'][0] >  1: return -np.inf 
-   
-    	
-    return  ss.powerlaw.logpdf((1-p['alpha'][0]), 4)
+	return 0
+
+    else:
+	if p['beta'][0] <  priors[0][0] or p['beta'][0] > priors[0][1]: return -np.inf
+	if p['alpha'][0] < priors[1][0]  or  p['alpha'][0] >  priors[1][1]: return -np.inf 
+	 
+	if diagnosis_lag: 
+		if (p['diag_lag'][0] < 0.000001).any() or (p['diag_lag'][0] > 1).any():return -np.inf
+		if recovery_prob != np.inf:
+			if p['gamma'][0] < recovery_prob[0]  or  p['gamma'][0] >  recovery_prob[1]: return -np.inf 
+
+    	return  ss.powerlaw.logpdf((1-p['alpha'][0]), 4)
 #######################################################################
-def start_nbda(data, recovery_prob, priors,  niter, nburn, verbose, diagnosis_lag=False, null_comparison=False, **kwargs):
+def start_nbda(data, recovery_prob, priors,  niter, nburn, verbose,  contact_daylist, recovery_daylist, nsick_param, diagnosis_lag=False, null_comparison=False, **kwargs3):
 	
-	G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date =data	
-	
-	if diagnosis_lag:
-		contact_daylist = nf.return_contact_days_sick_nodes(node_health, seed_date, G_raw)
-		truth_of_lag = nf.compute_diagnosis_lag_truth(G_raw[0], contact_daylist[0], "True_health_data.csv")
-		nsick_param = len(contact_daylist[0])
-		recovery_daylist = nf.return_potention_recovery_date(node_health, time_max, G_raw)
-	else: nsick_param = 0
-	
-	######################################
-	### Set number of parameters to estimate
-	######################################
-	ndim_base = 2
-	if diagnosis_lag: ndim_base += (nsick_param+1)
-	ndim = ndim_base+nsick_param
-	if null_comparison: ndim += 1 
 
-	if verbose: print ("Number of dimension"), ndim
-	
-	nwalkers = max(50, 2*ndim) # number of MCMC walkers
-
-	####################### 
-	##Adjust temperature ladder
-	#######################
-	if null_comparison:
-		betas = np.concatenate((np.linspace(0, -0.04, 2),
-                                    np.linspace(-0.05, -0.08, 2),
-                                    np.linspace(-0.82, -1, 2),
-				np.linspace(-1.1, -2, 2),
-				np.linspace(-2.1, -4, 2)))
+	null_comparison_data=None
+	##############################################################################
+	if null_comparison: 
+		G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date,parameter_estimate = data
+		ndim = 1 
+		betas = np.linspace(0, -0.04, 10)
 		#betas = np.linspace(0, -0.04, 10)
 		betas = 10**(np.sort(betas)[::-1])
 		ntemps = 10
+		nwalkers = max(10, 2*ndim) # number of MCMC walkers
+		starting_guess = np.zeros((ntemps, nwalkers, ndim))
+		starting_guess[:, :, 0] = np.random.uniform(low = 0.0001, high =1, size=(ntemps, nwalkers))
+		null_comparison_data = parameter_estimate
+
+
+	else: 
+		G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date =data		
+		######################################
+		### Set number of parameters to estimate
+		######################################
+		ndim_base = 2
+		if diagnosis_lag: ndim_base += (nsick_param+1)
+		ndim = ndim_base+nsick_param
 		
-	else:
+		####################### 
+		##Adjust temperature ladder
+		#######################
 		betas = np.linspace(0, -0.04, 10)
 		betas = 10**(np.sort(betas)[::-1])
 		ntemps = 10
-
-	####################### 
-	###print true likelihood
-	#######################
-	if verbose:print ("true likelihood value"), log_likelihood(np.array(true_value), data, null_comparison, diagnosis_lag,recovery_prob, nsick_param)
-	
-	########################################### 
-	###set starting positions for the walker
-	#############################################
-	starting_guess = np.zeros((ntemps, nwalkers, ndim))
-	##starting guess for beta  
-	starting_guess[:, :, 0] = np.random.uniform(low = priors[0][0], high = priors[0][1], size=(ntemps, nwalkers))
-	##start alpha close to zero
-	alphas = np.random.power(4, size = (ntemps, nwalkers))
-	starting_guess[:, :, 1] = 1-alphas
-	if diagnosis_lag:
-		if recovery_prob != np.inf: starting_guess[:, :, 2] = np.random.uniform(low = recovery_prob[0], high = recovery_prob[1], size=(ntemps, nwalkers))
-		starting_guess[:, :, ndim_base: ndim_base+nsick_param] = np.random.uniform(low = 0.001, high = 1,size=(ntemps, nwalkers, nsick_param))
 		
-	if null_comparison:
-		starting_guess[:, :, -1] = np.random.uniform(low = 0.0001, high =1, size=(ntemps, nwalkers))
-	 
+		########################################### 
+		###set starting positions for the walker
+		#############################################
+		nwalkers = max(50, 2*ndim) # number of MCMC walkers
+		starting_guess = np.zeros((ntemps, nwalkers, ndim))
+		##starting guess for beta  
+		starting_guess[:, :, 0] = np.random.uniform(low = priors[0][0], high = priors[0][1], size=(ntemps, nwalkers))
+		##start alpha close to zero
+		alphas = np.random.power(4, size = (ntemps, nwalkers))
+		starting_guess[:, :, 1] = 1-alphas
+		if diagnosis_lag:
+			if recovery_prob != np.inf: starting_guess[:, :, 2] = np.random.uniform(low = recovery_prob[0], high = recovery_prob[1], size=(ntemps, nwalkers))
+			starting_guess[:, :, ndim_base: ndim_base+nsick_param] = np.random.uniform(low = 0.001, high = 1,size=(ntemps, nwalkers, nsick_param))
 
+		
+		
+	##############################################################################
+	if verbose: print ("Number of dimension"), ndim	
 	####################################
 	if verbose: print ("burn in......")
-	if diagnosis_lag: 
-		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, null_comparison, diagnosis_lag, recovery_prob,  nsick_param, contact_daylist), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param , recovery_prob), threads=2) 
-	else: 
-		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob), threads=2) 
+	sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, recovery_daylist, null_comparison_data), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)) 
 	
 	#Run user-specified burnin
 	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = nburn)): 
@@ -289,11 +297,15 @@ def getstate(sampler):
 	return self_dict
 
 ##############################################################################################
-def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type):
+def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob):
 
 	if summary_type =="parameter_estimate":
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
-		fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
+		if recovery_prob!=np.inf:
+			fig = corner.corner(sampler.flatchain[0, :, 0:3], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
+		else:
+			fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
+			
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
 		nf.plot_beta_results(sampler, filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
 		logz, logzerr = log_evidence(sampler)
@@ -309,7 +321,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	if summary_type =="null_comparison":
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
 		N_networks = len(G_raw)
-		sampler1 = sampler.flatchain[0, :, 2]
+		sampler1 = sampler.flatchain[0, :, 0]
 		bins = [0]+[ss.randint.cdf(num, 0, N_networks) for num in xrange(N_networks)]
 		hist = np.histogram(sampler1, bins)[0]
 		print ("# times models visited"), [num for num in xrange(N_networks)], hist
@@ -324,7 +336,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 		plt.gca().get_xaxis().tick_bottom()    
 		plt.gca().get_yaxis().tick_left()   
 		##############################
-		plt.hist(hist[1:], bins=50, normed=True, color="#969696")
+		plt.hist(hist[1:], bins=10, normed=True, color="#969696")
 		plt.axvline(x=hist[0], ymin=0, ymax=max(hist), linewidth=2, color='#e41a1c', label ="Network hypothesis")
 		plt.xlabel("Predictive power", **axis_font)
 		plt.ylabel("Frequency", **axis_font)
@@ -346,7 +358,7 @@ def find_aggregate_timestep(health_data):
 	return list(set(timelist))[0]
 	
 ######################################################################33
-def run_nbda_analysis(edge_filename, health_filename, output_filename, infection_type, nodelist,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True,**kwargs):
+def run_nbda_analysis(edge_filename, health_filename, output_filename, infection_type, nodelist,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True,**kwargs4):
 	"""Main function for NBDA """
 	
 	####################
@@ -356,28 +368,42 @@ def run_nbda_analysis(edge_filename, health_filename, output_filename, infection
 	time_max = max([key for node in health_data.keys() for key in health_data[node].keys()])
 	G_raw = {}
 	G_raw[0] = nf.create_dynamic_network(edge_filename, normalize_edge_weight)
+	contact_daylist = None
+	recovery_daylist = None	
+	nsick_param = 0
+	
+	if diagnosis_lag:
+		contact_daylist = nf.return_contact_days_sick_nodes(node_health, seed_date, G_raw)
+		nsick_param = len(contact_daylist[0])
+		if recovery_prob!=np.inf: recovery_daylist = nf.return_potention_recovery_date(node_health, time_max, G_raw)
+	
+		
 	
 	###################
 	##Step 1: Estimate unknown parameters of HA.
 	true_value = truth[:-1]
 	data1 = [G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date]
 	print ("estimating model parameters.........................")
-	sampler  = start_nbda(data1,  recovery_prob, priors,  iteration, burnin, verbose, diagnosis_lag=False, null_comparison=False)
+	sampler  = start_nbda(data1,  recovery_prob, priors,  iteration, burnin, verbose,  contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
 	summary_type = "parameter_estimate"
-	summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
+	summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
 	####################
 
-	
+
 	if null_comparison:
+		#samples = flatten_chain(sampler)
+		#parameter_estimate = summary(samples)
+		parameter_estimate = [0.045, 0.001]
+		print ("paramter estimate of network hypothesis"), parameter_estimate
 		print ("generating null graphs.......")
 		for num in xrange(null_networks):G_raw[num+1] = nf.randomize_network(G_raw[0])
 	
 		true_value = truth
-		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date]
+		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_estimate]
 		print ("comparing network hypothesis with null............................")
-		sampler = start_nbda(data1, recovery_prob, priors,  iteration, burnin, verbose, diagnosis_lag=False, null_comparison=True, null_networks=null_networks)
+		sampler = start_nbda(data1, recovery_prob, priors,  iteration, burnin, verbose, contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag, null_comparison=True, null_networks=null_networks)
 		summary_type = "null_comparison"
-		summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
+		summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
 	
 	
 		

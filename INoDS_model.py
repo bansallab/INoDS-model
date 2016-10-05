@@ -391,9 +391,8 @@ def run_nbda_analysis(edge_filename, health_filename, output_filename, infection
 
 
 	if null_comparison:
-		#samples = flatten_chain(sampler)
-		#parameter_estimate = summary(samples)
-		parameter_estimate = [0.045, 0.001]
+		samples = flatten_chain(sampler)
+		parameter_estimate = summary(samples)
 		print ("paramter estimate of network hypothesis"), parameter_estimate
 		print ("generating null graphs.......")
 		for num in xrange(null_networks):G_raw[num+1] = nf.randomize_network(G_raw[0])

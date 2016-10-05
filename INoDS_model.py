@@ -307,7 +307,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 			fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
 			
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
-		nf.plot_beta_results(sampler, filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
+		nf.plot_beta_results(sampler, true_value[0], filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
 		logz, logzerr = log_evidence(sampler)
 		print ("Model evidence and error"), logz, logzerr
 			

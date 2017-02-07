@@ -151,28 +151,26 @@ def extract_health_data(filename, infection_type, nodelist, diagnosis_lag=False)
 			
 
 	if diagnosis_lag: health_data = stitch_health_data(health_data)
-	#for node in health_data.keys():
-	#	print ("check healthdata"), node, 0 in health_data[node].keys()
-
+	
 	node_health = {}
 	for node in health_data.keys():
-		sick_list_tort=[]
-		healthy_list_tort=[]
+		sick_list_node=[]
+		healthy_list_node=[]
 		node_health[node] = {}
+		## sort infection reported into infected (sick_list) and healthy (healthy_list) lists
 		for time1 in health_data[node].keys():
-			if health_data[node][time1]==1: sick_list_tort.append(time1)
-			if health_data[node][time1]==0: healthy_list_tort.append(time1)
+			if health_data[node][time1]==1: sick_list_node.append(time1)
+			if health_data[node][time1]==0: healthy_list_node.append(time1)
 		
-		if len(healthy_list_tort)>0:
-			healthy_list_tort = sorted(healthy_list_tort)
-			#if 0 in healthy_list_tort: print ("no!!!"), node, healthy_list_tort
-			node_health[node][0] = select_healthy_time(healthy_list_tort, node, health_data, infection_type)
+		if len(healthy_list_node)>0:
+			healthy_list_node = sorted(healthy_list_node)
+			node_health[node][0] = select_healthy_time(healthy_list_node, node, health_data, infection_type)
 			
 				
 		
-		if len(sick_list_tort)>0:
-			sick_list_tort = sorted(sick_list_tort)
-			node_health[node][1]= select_sick_times(sick_list_tort, node, health_data) 
+		if len(sick_list_node)>0:
+			sick_list_node = sorted(sick_list_node)
+			node_health[node][1]= select_sick_times(sick_list_node, node, health_data) 
 
 		if node_health[node].has_key(1):		
 			for time1, time2 in node_health[node][1]:
@@ -181,21 +179,21 @@ def extract_health_data(filename, infection_type, nodelist, diagnosis_lag=False)
 
 	return health_data, node_health
 ##############################################################################
-def select_healthy_time(healthy_list_tort, node, health_data, infection_type):
+def select_healthy_time(healthy_list_node, node, health_data, infection_type):
 
 	healthy_times = []
 	
 	#if SIR type of infection
 	if infection_type[-1].lower()=='r':
-		min_date = [time for time in healthy_list_tort if len([val for key, val in health_data[node].items() if key<time])==0]
+		min_date = [time for time in healthy_list_node if len([val for key, val in health_data[node].items() if key<time])==0]
 		
 	else: 
 		#min time = if the time was first ever report or the prior report was sick
 		#min date = if there was (any report before focal date AND the report was sick) OR there was no report before the day
-		min_date = [time for time in healthy_list_tort if (len([val for key, val in health_data[node].items() if key<time])>0 and health_data[node][max([key for key in health_data[node] if key < time])]==1) or len([val for key, val in health_data[node].items() if key<time])==0]
+		min_date = [time for time in healthy_list_node if (len([val for key, val in health_data[node].items() if key<time])>0 and health_data[node][max([key for key in health_data[node] if key < time])]==1) or len([val for key, val in health_data[node].items() if key<time])==0]
 		
 	#max_date - if there was (any report after focal date AND the report was sick) OR there was no report after the day
-	max_date = [time for time in healthy_list_tort if (len([val for key, val in health_data[node].items() if key> time])>0 and health_data[node][min([key for key in health_data[node] if key > time])]==1) or len([val for key, val in health_data[node].items() if key>time])==0]
+	max_date = [time for time in healthy_list_node if (len([val for key, val in health_data[node].items() if key> time])>0 and health_data[node][min([key for key in health_data[node] if key > time])]==1) or len([val for key, val in health_data[node].items() if key>time])==0]
 	
 	min_date = sorted(min_date)
 	max_date = sorted(max_date)
@@ -204,13 +202,13 @@ def select_healthy_time(healthy_list_tort, node, health_data, infection_type):
 	return healthy_times
 	
 ############################################################################
-def select_sick_times(sick_list_tort, node, health_data):
+def select_sick_times(sick_list_node, node, health_data):
 	""" from all the time-points pick the first reported sick dates"""
 
 
 	sick_times = []
-	min_date = [time for time in sick_list_tort if (len([val for key, val in health_data[node].items() if key<time])>0 and health_data[node][max([key for key in health_data[node] if key < time])]==0) or len([val for key, val in health_data[node].items() if key<time])==0]
-	max_date = [time for time in sick_list_tort if (len([val for key, val in health_data[node].items() if key> time])>0 and health_data[node][min([key for key in health_data[node] if key > time])]==0) or len([val for key, val in health_data[node].items() if key>time])==0]
+	min_date = [time for time in sick_list_node if (len([val for key, val in health_data[node].items() if key<time])>0 and health_data[node][max([key for key in health_data[node] if key < time])]==0) or len([val for key, val in health_data[node].items() if key<time])==0]
+	max_date = [time for time in sick_list_node if (len([val for key, val in health_data[node].items() if key> time])>0 and health_data[node][min([key for key in health_data[node] if key > time])]==0) or len([val for key, val in health_data[node].items() if key>time])==0]
 	min_date = sorted(min_date)
 	max_date = sorted(max_date)
 	

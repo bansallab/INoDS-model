@@ -133,8 +133,8 @@ def stitch_health_data(health_data):
 #######################################################################
 def extract_health_data(filename, infection_type, nodelist, diagnosis_lag=False):
 
-	"""node_health is a dictionary of diction. Primary key = node id.
-	Secondary key = 0/1. 0 (1) key stores chunk of days when the individual is **known** to be healthy (infection).
+	"""node_health is a dictionary of dictionary. Primary key = node id.
+	Secondary key = 0/1. 0 (1) key stores chunk of days when the node is **known** to be healthy (infected).
 	 Dates stored as tuple of (start date, end date)"""
 
 	health_data = {}

@@ -38,12 +38,14 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 		p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)
 		network=0 
 		G= G_raw[0]
-	##########################################diagnosis lag
+	###############################################################################################
+	##diagnosis lag==
 	##impute true infection date and recovery date (if SIR/SIRS...)
 	## infection_date = date picked as a day between last healthy report and first sick report
 	## and when the degree of node was >0 the previous day
 	##recovery_date = date picked as day with uniform probability between first reported sick day and first 
 	##healthy date after sick report
+	##################################################################################################
 	
 	infection_date = []
 	if diagnosis_lag:
@@ -71,24 +73,36 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 			#PS: double check this line for SIS
 			if node_health[node].has_key(1): 
 				for (time1, time2) in node_health[node][1]:infection_date.append((node,time1))
-				
-	#################################################	
-	infected_degree={key:{} for key in nodelist}
-	for node in nodelist: infected_degree[node] = {time: (infected_strength(node, time, health_data_new, G) if node in G[time].nodes() else 0) for time in G.keys()}
 	
-	#######Rate of learning
-	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['alpha'][0], infected_degree, focal_node, sick_day)) for focal_node, sick_day in sorted(infection_date) if sick_day!=seed_date]
+	################################################################			
+	## Store infected strength (weighted degree) of all nodes at   #
+	## all times                                                   #                       
+	################################################################	
+	infected_strength={key:{} for key in nodelist}
+	for node in nodelist: infected_strength[node] = {time: (calculate_infected_strength(node, time, health_data_new, G) if node in G[time].nodes() else 0) for time in G.keys()}
+	
+	################################################################
+	##Calculate rate of learning for all sick nodes at all sick    #
+	## dates, but not when sick day is the seed date (i.e., the    #
+	## first  report of the infection in the network               #
+	################################################################
+	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['alpha'][0], infected_strength, focal_node, sick_day)) for focal_node, sick_day in sorted(infection_date) if sick_day!=seed_date]
 
-	#######Rate of not learning
+	################################################################
+	##Calculate rate of NOT learning for all the days the node was #
+	## (either reported or inferred) healthy                       #
+	################################################################
 	overall_not_learn = []
-	healthy_nodelist = [(node, healthy_day1, healthy_day2) for node in node_health_new if node_health_new[node].has_key(0) for healthy_day1, healthy_day2 in node_health_new[node][0] ]
+	healthy_nodelist = [(node, healthy_day1, healthy_day2) for node in node_health_new if node_health_new[node].has_key(0) for healthy_day1, healthy_day2 in node_health_new[node][0]]
 	
 	for focal_node,healthy_day1, healthy_day2 in sorted(healthy_nodelist):
-		lambda_list = [1-calculate_lambda1(p['beta'][0],p['alpha'][0], infected_degree, focal_node, date) for date in range(healthy_day1, healthy_day2+1)]
+		lambda_list = [1-calculate_lambda1(p['beta'][0],p['alpha'][0], infected_strength, focal_node, date) for date in range(healthy_day1, healthy_day2+1)]
 		overall_not_learn.append(sum([np.log(num) for num in lambda_list]))
 
 
-	##############################
+	###########################################################
+	## Calculate overall log likelihood                       #
+	########################################################### 
 	loglike = sum(overall_learn) + sum(overall_not_learn)
 	#if int(ss.randint.ppf(p['model'][0], 0,  len(G_raw)))==0:print loglike, p['beta'][0], p['alpha'][0], p['model'][0], len(G_raw), int(ss.randint.ppf(p['model'][0], 0,  len(G_raw)))
 	
@@ -96,12 +110,19 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 	else: return loglike
 
 ###############################################################################
-def calculate_lambda1(beta1, alpha1, infected_degree, focal_node, date):
-	return 1-np.exp(-(beta1*infected_degree[focal_node][date-1] + alpha1))
+def calculate_lambda1(beta1, alpha1, infected_strength, focal_node, date):
+	r""" This function calculates the infection potential of the 
+	focal_node based on (a) its infected_strength at the previous time step (date-1),
+	and (b) tranmission potential unexplained by the individual's network connections."""
+
+	return 1-np.exp(-(beta1*infected_strength[focal_node][date-1] + alpha1))
 
 ################################################################################
-def infected_strength(node, time1, health_data_new, G):
-	
+def calculate_infected_strength(node, time1, health_data_new, G):
+	r""" This function calculates the infected strength of focal node = node 
+	as the sum of the weighted edge connections of the node at time=time1. Only
+	those nodes are considered that are reported as sick (= 1) at time1."""
+
 	strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if (health_data_new[node_i].has_key(time1) and health_data_new[node_i][time1] == 1)]
 	
 	return sum(strength)
@@ -150,8 +171,8 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, n
 
 #####################################################################
 def autocor_checks(sampler, itemp=0, outfile=None):
-    
-	""" Perform autocorrelation checks"""
+	r""" Perform autocorrelation checks"""
+
 	print('Chains contain samples (after burnin)='), sampler.chain.shape[-2]
     	a_exp = sampler.acor[0]
 	a_int = np.max([autocorr.integrated_time(sampler.chain[itemp, i, :]) for i in range(sampler.chain.shape[1])], 0)
@@ -163,8 +184,8 @@ def autocor_checks(sampler, itemp=0, outfile=None):
 
 #####################################################################
 def log_evidence(sampler):
+	r""" Calculate log evidence and error"""
 
-	""" Calculate log evidence and error"""
 	logls = sampler.lnlikelihood[:, :, :]
 	logls = ma.masked_array(logls, mask=logls == -np.inf)
 	
@@ -175,9 +196,9 @@ def log_evidence(sampler):
 	return logZ, logZerr
 
 #####################################################################
-
 def flatten_chain(sampler):
-    """Flatten zero temperature chain"""
+    r"""Flatten zero temperature chain"""
+
     c = sampler.chain
     c = c[0,:, :]
     ct = c.reshape((np.product(c.shape[:-1]), c.shape[-1]))

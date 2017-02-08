@@ -15,12 +15,14 @@ import warnings
 from scipy import signal
 import scipy.stats as ss
 import cPickle
+import time
 np.seterr(invalid='ignore')
 np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 #######################################################################
 def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, recovery_daylist, null_comparison_data):
+	r"""Computes the log-likelihood of network given infection data """
 	
 	if null_comparison:
 		G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date,parameter_estimate = data
@@ -49,6 +51,7 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 	if diagnosis_lag:
 		diag_list = p['diag_lag'][0]
 		diag_list = [max(num,0.000001) and min(num,1) for num in diag_list]
+		## iterate through focal node, infection time-period and diagnosis lag 
 		for (node, time1, time2), diag_lag in zip(sorted(contact_daylist[network]), diag_list):
 			lag = int(ss.randint.ppf(diag_lag, 0,  len(contact_daylist[network][(node, time1, time2)])))
 			new_infection_time  = contact_daylist[network][(node, time1, time2)][lag]
@@ -67,18 +70,17 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 			for day in range(new_infection_time, new_recovery_time+1): health_data_new[node][day]=1
 			
 	else:
-		for node in node_health:
-			#PS: double check this line for SIS
-			if node_health[node].has_key(1): 
-				for (time1, time2) in node_health[node][1]:infection_date.append((node,time1))
+		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
 	
+
 	################################################################			
 	## Store infected strength (weighted degree) of all nodes at   #
 	## all times                                                   #                       
 	################################################################	
 	infected_strength={key:{} for key in nodelist}
-	for node in nodelist: infected_strength[node] = {time: (calculate_infected_strength(node, time, health_data_new, G) if node in G[time].nodes() else 0) for time in G.keys()}
-	
+	for node in nodelist: 
+		infected_strength[node] = {time: calculate_infected_strength(node, time, health_data_new, G) for time in G.keys()}
+
 	################################################################
 	##Calculate rate of learning for all sick nodes at all sick    #
 	## dates, but not when sick day is the seed date (i.e., the    #
@@ -102,8 +104,7 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 	## Calculate overall log likelihood                       #
 	########################################################### 
 	loglike = sum(overall_learn) + sum(overall_not_learn)
-	#if int(ss.randint.ppf(p['model'][0], 0,  len(G_raw)))==0:print loglike, p['beta'][0], p['alpha'][0], p['model'][0], len(G_raw), int(ss.randint.ppf(p['model'][0], 0,  len(G_raw)))
-	
+
 	if loglike == -np.inf or np.isnan(loglike):return -np.inf
 	else: return loglike
 
@@ -120,9 +121,10 @@ def calculate_infected_strength(node, time1, health_data_new, G):
 	r""" This function calculates the infected strength of focal node = node 
 	as the sum of the weighted edge connections of the node at time=time1. Only
 	those nodes are considered that are reported as sick (= 1) at time1."""
-
-	strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if (health_data_new[node_i].has_key(time1) and health_data_new[node_i][time1] == 1)]
 	
+	## infected strength is sum of all edge weights of focal nodes connecting to infected nodes
+	## NOTE: health_data_new[node_i].get(time1) checks if time1 is present in health_data[node_i] AND if the value is 1
+	strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if node in G[time1].nodes() and health_data_new[node_i].get(time1)]
 	return sum(strength)
 
 ################################################################################

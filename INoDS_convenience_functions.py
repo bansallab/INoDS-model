@@ -42,6 +42,8 @@ def create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dyna
 	for time1 in df["timestep"].unique():  G[time1] = nx.Graph()
 	for time1 in G:
 		df_sub= df.loc[df['timestep'] == time1]
+		df_sub['node1'] = df_sub['node1'].astype(str)
+		df_sub['node2'] = df_sub['node2'].astype(str)
 		edge_list = list(zip(df_sub.node1, df_sub.node2))
 		G[time1].add_edges_from(edge_list)
 		edge_attr = dict(zip(zip(df_sub.node1, df_sub.node2), df_sub.weight))
@@ -301,6 +303,7 @@ def find_seed_date(node_health):
 	sick_dates = [item for sublist in sick_dates for item in sublist]
 	#pick the first date
 	sick_dates=[num[0] for num in sick_dates]
+	
 	#sort tuple according to increasing infection dates
 	sick_dates = sorted(sick_dates)
 	# pick out the first reported infection date

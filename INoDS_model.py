@@ -429,7 +429,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	
 		true_value = truth
 		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_estimate]
-		print ("comparing network hypothesis with null............................")
+		print ("comparing network hypothesis with null..........................")
 		sampler = start_sampler(data1, recovery_prob, priors,  iteration, burnin, verbose, contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag, null_comparison=True, null_networks=null_networks)
 		summary_type = "null_comparison"
 		summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)

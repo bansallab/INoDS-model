@@ -237,42 +237,58 @@ def select_sick_times(sick_list_node, node, health_data):
 
 #########################################################################
 def return_contact_days_sick_nodes(node_health, seed_date, G_raw):
+	r"""If infection diagnosis is lagged, then true infection day is
+	inferred using infectious contact history of the focal node """
 
 	contact_daylist={key:{} for key in G_raw}
+	## select all nodes that were reported infected and sort
 	for node in sorted([node1 for node1 in node_health.keys() if node_health[node1].has_key(1)]):
 		## removing seed nodes
 		sick_days = [(time1, time2) for (time1, time2) in sorted(node_health[node][1]) if time1!= seed_date]
-		for time1, time2 in sorted(sick_days):
+		##for all time periods when the node was reported sick
+		for time1, time2 in sick_days:
 			#default day start
-				day_start =0
-				if node_health[node].has_key(0):
-					healthy_dates = [(healthy_day1, healthy_day2) for healthy_day1, healthy_day2 in node_health[node][0] if healthy_day2 < time1]
-					if len(healthy_dates)>0:
-						lower_limit, upper_limit = max(healthy_dates, key=lambda x:x[1])
-						day_start = upper_limit
+			day_start =0
+			if node_health[node].has_key(0):
+				##choose all uninfected time-periods before the focal sick period
+				healthy_dates = [(healthy_day1, healthy_day2) for healthy_day1, healthy_day2 in node_health[node][0] if healthy_day2 < time1]
+				if len(healthy_dates)>0:
+					##choose the latest uninfected period
+					lower_limit, upper_limit = max(healthy_dates, key=lambda x:x[1])
+					##choose the last ever reported time-point of being uninfected
+					day_start = upper_limit
+
+			##contact_daylist is dictionary. Primary key = network type. Could be network hypothesis or null network
+			## secondary key (node1, time1, time2) indicated focal node and its infected time period
+			##values are the time-points when the node could have potentially contracted infection
+			for network in G_raw:
 				#choose only those days where nodes has contact the previous day
-				for network in G_raw:
-						contact_daylist[network][(node, time1, time2)] =[day for day in range(day_start+1, time1+1) if G_raw[network][day-1].degree(node)>0]
+				contact_daylist[network][(node, time1, time2)] =[day for day in range(day_start+1, time1+1) if G_raw[network][day-1].degree(node)>0]
 
 	return contact_daylist
 
 #########################################################################
 def return_potention_recovery_date(node_health, time_max,  G_raw):
-
+	r""" For SIR model. Returns the potential time-points of recovery for each 
+	infected focal node"""
 	
-	## removing seed nodes
 	recovery_daylist = {}
+	## select all nodes that were reported infected and sort
 	for node in sorted([node1 for node1 in node_health.keys() if node_health[node1].has_key(1)]):
-		sick_days = [(time1, time2) for (time1, time2) in sorted(node_health[node][1])]
-		for time1, time2 in sorted(sick_days):
+		## sort sick days for the focal node
+		sick_days = sorted(node_health[node][1])
+		for time1, time2 in sick_days:
 			if node_health[node].has_key(0):
+				##choose all uninfected time-periods after the focal sick period
 				healthy_dates = [(healthy_day1, healthy_day2) for healthy_day1, healthy_day2 in node_health[node][0] if healthy_day2 > time1]
 				if len(healthy_dates)>0:
-					#select min healthy dates
+					##choose the first report of uninfection
 					lower_limit, upper_limit = min(healthy_dates, key=lambda x:x[1])
 					recovery_date = lower_limit
 			else: recovery_date = time_max
 				
+			##recovery date can be any time-point between the last report of node "infection" state to the the first 
+			## report of uninfection afterwards (or time_max of the study)
 			recovery_daylist[(node, time1, time2)] = recovery_date
 
 	return recovery_daylist

@@ -321,9 +321,12 @@ def getstate(sampler):
 def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob):
 
 	if summary_type =="parameter_estimate":
+		samples = flatten_chain(sampler)
+		parameter_estimate = summary(samples)
+		print ("paramter estimate of network hypothesis"), parameter_estimate
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
 		if recovery_prob!=np.inf:
-			fig = corner.corner(sampler.flatchain[0, :, 0:3], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
+			fig = corner.corner(sampler.flatchain[0, :, 0:3], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$", "$rho$"], truths= true_value, truth_color ="red")
 		else:
 			fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
 			
@@ -333,7 +336,6 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		print ("Model evidence and error"), logz, logzerr
 			
 	stats={}
-	samples = flatten_chain(sampler)
 	try:stats['a_exp'], stats['a_int'] = autocor_checks(sampler)
 	except: print ("Warning!! Autocorrelation checks could not be performed. Sampler chains may be too short")        
 	
@@ -369,7 +371,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 
 #######################################################################
 def find_aggregate_timestep(health_data):
-	"""Returns the timestep where all infection status are reported """
+	r"""Returns the timestep where all infection status are reported """
 
 	timelist = []
 	for node in health_data.keys():
@@ -402,37 +404,50 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	recovery_daylist = None	
 	nsick_param = 0
 	
+	###############################################################
+	##if infection diagnosis is lagged, then true infection day is#
+	## inferred using infectious contact history of focal node    # 
+	###############################################################
 	if diagnosis_lag:
+		########################################################################
+		## contact daylist is a dictionary                                     #  
+		##Format: contact_daylist[network_type][(node, time1, time2)] =        #
+		## potential time-points when the node could have contract infection   #  
+		########################################################################
 		contact_daylist = nf.return_contact_days_sick_nodes(node_health, seed_date, G_raw)
 		nsick_param = len(contact_daylist[0])
-		if recovery_prob!=np.inf: recovery_daylist = nf.return_potention_recovery_date(node_health, time_max, G_raw)
+		########################################################################
+		## recovery daylist is a dictionary.                                   #  
+		##Format: recovery_daylist[(node, time1, time2)] = recovery_date       #  
+		## where node=focal node, time1:time2 = time-period of being infected. # 
+		## recovery date = maximum time-point of node recovery                 #
+		########################################################################
+		if recovery_prob!=np.inf: recovery_daylist = nf.return_potention_recovery_date(node_health, time_max, G_raw)	
 	
-		
-	
-	###################
-	##Step 1: Estimate unknown parameters of HA.
+	##########################################################################
+	##Step 1: Estimate unknown parameters of network hypothesis HA.
 	true_value = truth[:-1]
 	data1 = [G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date]
 	print ("estimating model parameters.........................")
 	sampler  = start_sampler(data1,  recovery_prob, priors,  iteration, burnin, verbose,  contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
 	summary_type = "parameter_estimate"
 	summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
-	####################
+	#############################################################################
 
 
+	########################################################################
+	##Step 2: Perform hypothesis testing by comparing HA against null networks
 	if null_comparison:
-		samples = flatten_chain(sampler)
-		parameter_estimate = summary(samples)
-		print ("paramter estimate of network hypothesis"), parameter_estimate
 		print ("generating null graphs.......")
 		for num in xrange(null_networks):G_raw[num+1] = nf.randomize_network(G_raw[0])
-	
 		true_value = truth
 		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_estimate]
 		print ("comparing network hypothesis with null..........................")
 		sampler = start_sampler(data1, recovery_prob, priors,  iteration, burnin, verbose, contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag, null_comparison=True, null_networks=null_networks)
 		summary_type = "null_comparison"
 		summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
+	##############################################################################
+
 	
 	
 		

@@ -4,36 +4,49 @@ import numpy as np
 import scipy.stats as ss
 from random import shuffle
 import matplotlib.pyplot as plt
+import pandas as pd
 #################################################################################
-def create_dynamic_network(filename, normalize_edge_weight):
+def create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dynamic, time_max):
+
+	
+	df = pd.read_csv(edge_filename)
+	df.columns = df.columns.str.lower()
+	header = list(df)
+	
+	if [str1 for str1 in header[:3]] != ["node1", "node2", "weight"]: 
+		raise ValueError("The first three columns in network file should be arranged as named as 'node1', 'node2', 'weight'")
+	if is_network_dynamic and (len(header)<4 or header[3] != "timestep"):
+		raise ValueError("Time-stamps are either missing or the column is not labelled as 'timestep'!")
+
+
+	if not is_network_dynamic:
+		n_edges = len(df.index)
+		timelist = [[num]*n_edges for num in xrange(time_max+1)]
+		timelist = [val for sublist in timelist for val in sublist]
+		df=pd.concat([df]*(time_max+1), ignore_index=True)
+		df['timestep']=timelist
 
 	
 	if normalize_edge_weight:
-		total_weight ={}
-		with open (filename, 'r') as csvfile:
-			fileread = csv.reader(csvfile, delimiter = ',')
-			next(fileread, None) #skip header
-			for row in fileread: 
-				wt = int(row[2])
-				time1 = int(row[3])
-				if time1 not in total_weight.keys(): total_weight[time1]=[]
-				total_weight[time1].append(wt)
+		## If the user asks for edge weight normalization, then calculate total edge weights
+		## at each time step
+		df_sum = df.groupby('timestep')['weight'].sum()
+		total_weight= df_sum.to_dict()
+		for time1 in total_weight:
+			#replace  raw weights with normalized weights
+			df.ix[df.timestep==time1, "weight"] = df["weight"]/total_weight[time1] 
+			
 
+	
 	G = {}
-	with open (filename, 'r') as csvfile:
-		fileread = csv.reader(csvfile, delimiter = ',')
-		next(fileread, None) #skip header
-		for row in fileread: 
-			node1 = row[0]
-			node2 = row[1]
-			wt = float(row[2])
-			time1 = int(row[3])
-			if time1 not in G.keys(): G[time1] = nx.Graph()
-		
-			G[time1].add_edge(node1, node2)
-			if normalize_edge_weight: norm_wt = wt/(1.0*sum(total_weight[time1]))
-			else: norm_wt = wt
-			G[time1][node1][node2]["weight"] = norm_wt
+	for time1 in df["timestep"].unique():  G[time1] = nx.Graph()
+	for time1 in G:
+		print time1
+		df_sub= df.loc[df['timestep'] == time1]
+		edge_list = list(zip(df_sub.node1, df_sub.node2))
+		G[time1].add_edges_from(edge_list)
+		edge_attr = dict(zip(zip(df_sub.node1, df_sub.node2), df_sub.weight))
+		nx.set_edge_attributes(G[time1], 'weight', edge_attr)
 
 
 	return G
@@ -131,16 +144,16 @@ def stitch_health_data(health_data):
 	
 	return health_data	
 #######################################################################
-def extract_health_data(filename, infection_type, nodelist, diagnosis_lag=False):
+def extract_health_data(health_filename, infection_type, nodelist, diagnosis_lag=False):
 
-	"""node_health is a dictionary of dictionary. Primary key = node id.
+	r"""node_health is a dictionary of dictionary. Primary key = node id.
 	Secondary key = 0/1. 0 (1) key stores chunk of days when the node is **known** to be healthy (infected).
 	 Dates stored as tuple of (start date, end date)"""
 
 	health_data = {}
 	for node in nodelist: health_data[str(node)]={}
 
-	with open (filename, 'r') as csvfile:
+	with open (health_filename, 'r') as csvfile:
 		fileread = csv.reader(csvfile, delimiter = ',')
 		next(fileread, None) #skip header
 		for row in fileread: 
@@ -174,6 +187,7 @@ def extract_health_data(filename, infection_type, nodelist, diagnosis_lag=False)
 
 		if node_health[node].has_key(1):		
 			for time1, time2 in node_health[node][1]:
+				##impute the missing report of sick in health data dictionary
 				for day in range(time1, time2+1): health_data[node][day]=1
 			
 
@@ -181,18 +195,21 @@ def extract_health_data(filename, infection_type, nodelist, diagnosis_lag=False)
 ##############################################################################
 def select_healthy_time(healthy_list_node, node, health_data, infection_type):
 
+	r""" Select chunks of time-periods (from healthy_list_node) for which the node
+	     is reported uninfected"""
+
 	healthy_times = []
 	
 	#if SIR type of infection
 	if infection_type[-1].lower()=='r':
+		#min date = if there was no report before the day
 		min_date = [time for time in healthy_list_node if len([val for key, val in health_data[node].items() if key<time])==0]
 		
 	else: 
-		#min time = if the time was first ever report or the prior report was sick
-		#min date = if there was (any report before focal date AND the report was sick) OR there was no report before the day
+		#min date = if there is (any report before focal date AND the last report is sick) OR there is no report before the day
 		min_date = [time for time in healthy_list_node if (len([val for key, val in health_data[node].items() if key<time])>0 and health_data[node][max([key for key in health_data[node] if key < time])]==1) or len([val for key, val in health_data[node].items() if key<time])==0]
 		
-	#max_date - if there was (any report after focal date AND the report was sick) OR there was no report after the day
+	#max_date = if there is (any report after focal date AND the report is sick) OR there is no report after the day
 	max_date = [time for time in healthy_list_node if (len([val for key, val in health_data[node].items() if key> time])>0 and health_data[node][min([key for key in health_data[node] if key > time])]==1) or len([val for key, val in health_data[node].items() if key>time])==0]
 	
 	min_date = sorted(min_date)
@@ -203,12 +220,16 @@ def select_healthy_time(healthy_list_node, node, health_data, infection_type):
 	
 ############################################################################
 def select_sick_times(sick_list_node, node, health_data):
-	""" from all the time-points pick the first reported sick dates"""
+	r""" Select chunks of time-periods (from sick_list_node) for which the node
+	     is reported sick"""
 
 
 	sick_times = []
+	#min date = if there is (any report before the focal date AND the last report therin is healthy) OR there is no report before the day
 	min_date = [time for time in sick_list_node if (len([val for key, val in health_data[node].items() if key<time])>0 and health_data[node][max([key for key in health_data[node] if key < time])]==0) or len([val for key, val in health_data[node].items() if key<time])==0]
+	#max date = if there is (any report after the focal date AND the first report theirin is sick) OR there is no report after the focal date
 	max_date = [time for time in sick_list_node if (len([val for key, val in health_data[node].items() if key> time])>0 and health_data[node][min([key for key in health_data[node] if key > time])]==0) or len([val for key, val in health_data[node].items() if key>time])==0]
+	
 	min_date = sorted(min_date)
 	max_date = sorted(max_date)
 	
@@ -258,7 +279,7 @@ def return_potention_recovery_date(node_health, time_max,  G_raw):
 	return recovery_daylist
 ####################################################################################
 def find_seed_date(node_health):
-
+	r"""Find the first time-period where an infection was reported"""
 
 	sick_dates = [val for node in node_health.keys() for key,val in node_health[node].items() if key==1]
 	#flatten list

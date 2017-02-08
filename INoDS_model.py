@@ -379,16 +379,26 @@ def find_aggregate_timestep(health_data):
 	return list(set(timelist))[0]
 	
 ######################################################################33
-def run_nbda_analysis(edge_filename, health_filename, output_filename, infection_type, nodelist,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True,**kwargs4):
+def run_nbda_analysis(edge_filename, health_filename, output_filename, infection_type, nodelist,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True, **kwargs4):
 	"""Main function for NBDA """
 	
-	####################
+	###########################################################################
+	##health_data is the raw dictionary. The structure of dictionary:         # 
+	###health_data[node][timestep] = diagnosis                                #   
+	## Node health is dictionary with primary key - node id, 		  # 
+	## secondary key = infection status (0=healthy, 1=infected)               # 
+	## node_health[node id][infection status] = tuple of (min, max) time      #
+	## period when the node is in the infection status                        #
+	###########################################################################
+	print ("check"), health_filename
 	health_data, node_health = nf.extract_health_data(health_filename, infection_type,  nodelist)
+	#find the first time-period when an infection was reported 
 	seed_date = nf.find_seed_date(node_health)
 	time_min = 0
 	time_max = max([key for node in health_data.keys() for key in health_data[node].keys()])
 	G_raw = {}
-	G_raw[0] = nf.create_dynamic_network(edge_filename, normalize_edge_weight)
+	## read in the dynamic network hypthosis (HA)
+	G_raw[0] = nf.create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dynamic, time_max)
 	contact_daylist = None
 	recovery_daylist = None	
 	nsick_param = 0

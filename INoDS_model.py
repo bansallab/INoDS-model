@@ -25,11 +25,9 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 	if null_comparison:
 		G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date,parameter_estimate = data
 		health_data_new = copy.deepcopy(health_data)
-		node_health_new = copy.deepcopy(node_health)
-		
+		node_health_new = copy.deepcopy(node_health)		
 		p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)
 		network = int(ss.randint.ppf(p['model'][0], 0,  len(G_raw)))
-		#assing network
 		G = G_raw[network]
 	else:
 		G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date  = data
@@ -206,7 +204,7 @@ def flatten_chain(sampler):
 
 #######################################################################
 def summary(samples):
-
+    r"""Calculate mean and standard deviation of the sampler chains """
   
     mean = samples.mean(0)
     mean = [round(num,3) for num in mean]
@@ -234,7 +232,7 @@ def log_prior(parameters, priors, null_comparison, diagnosis_lag, nsick_param, r
     	return  ss.powerlaw.logpdf((1-p['alpha'][0]), 4)
 #######################################################################
 def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_daylist, recovery_daylist, nsick_param, diagnosis_lag=False, null_comparison=False, **kwargs3):
-	
+	r"""Sampling performed using emcee """
 
 	null_comparison_data=None
 	##############################################################################
@@ -242,7 +240,6 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 		G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date,parameter_estimate = data
 		ndim = 1 
 		betas = np.linspace(0, -0.04, 10)
-		#betas = np.linspace(0, -0.04, 10)
 		betas = 10**(np.sort(betas)[::-1])
 		ntemps = 10
 		nwalkers = max(10, 2*ndim) # number of MCMC walkers
@@ -284,8 +281,6 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 		
 		
 	##############################################################################
-	if verbose: print ("Number of dimension"), ndim	
-	####################################
 	if verbose: print ("burn in......")
 	sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, recovery_daylist, null_comparison_data), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)) 
 	
@@ -306,7 +301,6 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 		
 		
 	##############################
-
 	#The resulting samples are stored as the sampler.chain property:
 	assert sampler.chain.shape == (ntemps, nwalkers, niter/nthin, ndim)
 
@@ -319,6 +313,7 @@ def getstate(sampler):
 
 ##############################################################################################
 def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob):
+	r""" Summarize the results of the sampler"""
 
 	if summary_type =="parameter_estimate":
 		samples = flatten_chain(sampler)
@@ -438,6 +433,8 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	########################################################################
 	##Step 2: Perform hypothesis testing by comparing HA against null networks
 	if null_comparison:
+		samples = flatten_chain(sampler)
+		parameter_estimate = summary(samples)
 		print ("generating null graphs.......")
 		for num in xrange(null_networks):G_raw[num+1] = nf.randomize_network(G_raw[0])
 		true_value = truth

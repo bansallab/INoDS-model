@@ -41,7 +41,6 @@ def create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dyna
 	G = {}
 	for time1 in df["timestep"].unique():  G[time1] = nx.Graph()
 	for time1 in G:
-		print time1
 		df_sub= df.loc[df['timestep'] == time1]
 		edge_list = list(zip(df_sub.node1, df_sub.node2))
 		G[time1].add_edges_from(edge_list)

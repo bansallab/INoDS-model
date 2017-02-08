@@ -54,7 +54,7 @@ normalize_edge_weight= False
 #### run INoDS 
 ######################################
 start = time.time()
-inods.run_nbda_analysis(edge_filename, health_filename, output_filename, infection_type, nodelist, recovery_prob, truth, null_networks, priors, iteration, burnin, diagnosis_lag=False, null_comparison=False)
+inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, nodelist, recovery_prob, truth, null_networks, priors, iteration, burnin, diagnosis_lag=False, null_comparison=True, verbose=True, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True)
 
 end = time.time()
 print ("total run time="), end-start

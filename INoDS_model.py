@@ -233,7 +233,7 @@ def log_prior(parameters, priors, null_comparison, diagnosis_lag, nsick_param, r
 
     	return  ss.powerlaw.logpdf((1-p['alpha'][0]), 4)
 #######################################################################
-def start_nbda(data, recovery_prob, priors,  niter, nburn, verbose,  contact_daylist, recovery_daylist, nsick_param, diagnosis_lag=False, null_comparison=False, **kwargs3):
+def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_daylist, recovery_daylist, nsick_param, diagnosis_lag=False, null_comparison=False, **kwargs3):
 	
 
 	null_comparison_data=None
@@ -379,8 +379,8 @@ def find_aggregate_timestep(health_data):
 	return list(set(timelist))[0]
 	
 ######################################################################33
-def run_nbda_analysis(edge_filename, health_filename, output_filename, infection_type, nodelist,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True, **kwargs4):
-	"""Main function for NBDA """
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, nodelist,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True, **kwargs4):
+	r"""Main function for INoDS """
 	
 	###########################################################################
 	##health_data is the raw dictionary. The structure of dictionary:         # 
@@ -390,7 +390,6 @@ def run_nbda_analysis(edge_filename, health_filename, output_filename, infection
 	## node_health[node id][infection status] = tuple of (min, max) time      #
 	## period when the node is in the infection status                        #
 	###########################################################################
-	print ("check"), health_filename
 	health_data, node_health = nf.extract_health_data(health_filename, infection_type,  nodelist)
 	#find the first time-period when an infection was reported 
 	seed_date = nf.find_seed_date(node_health)
@@ -415,7 +414,7 @@ def run_nbda_analysis(edge_filename, health_filename, output_filename, infection
 	true_value = truth[:-1]
 	data1 = [G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date]
 	print ("estimating model parameters.........................")
-	sampler  = start_nbda(data1,  recovery_prob, priors,  iteration, burnin, verbose,  contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
+	sampler  = start_sampler(data1,  recovery_prob, priors,  iteration, burnin, verbose,  contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
 	summary_type = "parameter_estimate"
 	summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
 	####################
@@ -431,7 +430,7 @@ def run_nbda_analysis(edge_filename, health_filename, output_filename, infection
 		true_value = truth
 		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_estimate]
 		print ("comparing network hypothesis with null............................")
-		sampler = start_nbda(data1, recovery_prob, priors,  iteration, burnin, verbose, contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag, null_comparison=True, null_networks=null_networks)
+		sampler = start_sampler(data1, recovery_prob, priors,  iteration, burnin, verbose, contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag, null_comparison=True, null_networks=null_networks)
 		summary_type = "null_comparison"
 		summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
 	

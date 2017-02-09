@@ -21,7 +21,7 @@ np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 #######################################################################
-def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, recovery_daylist, null_comparison_data):
+def log_likelihood(parameters, data, infection_date, infected_strength, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, recovery_daylist, null_comparison_data):
 	r"""Computes the log-likelihood of network given infection data """
 	
 	if null_comparison:
@@ -47,8 +47,9 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 	##healthy date after sick report
 	##################################################################################################
 	
-	infection_date = []
+	
 	if diagnosis_lag:
+		infection_date = []
 		diag_list = p['diag_lag'][0]
 		diag_list = [max(num,0.000001) and min(num,1) for num in diag_list]
 		## iterate through focal node, infection time-period and diagnosis lag 
@@ -68,25 +69,22 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 			node_health_new[node][1].remove((time1, time2))
 			node_health_new[node][1].append((new_infection_time, new_recovery_time))	
 			for day in range(new_infection_time, new_recovery_time+1): health_data_new[node][day]=1
-			
-	else:
-		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
 	
-
-	################################################################			
-	## Store infected strength (weighted degree) of all nodes at   #
-	## all times                                                   #                       
-	################################################################	
-	infected_strength={key:{} for key in nodelist}
-	for node in nodelist: 
-		infected_strength[node] = {time: calculate_infected_strength(node, time, health_data_new, G) for time in G.keys()}
+			################################################################			
+			## Store infected strength (weighted degree) of all nodes at   #
+			## all times                                                   #                       
+			################################################################	
+			infected_strength={}
+			for node in nodelist: 
+				infected_strength[network][node] = {time: calculate_infected_strength(node, time, health_data_new, G) for time in G.keys()}
+			
 
 	################################################################
 	##Calculate rate of learning for all sick nodes at all sick    #
 	## dates, but not when sick day is the seed date (i.e., the    #
 	## first  report of the infection in the network               #
 	################################################################
-	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['alpha'][0], infected_strength, focal_node, sick_day)) for focal_node, sick_day in sorted(infection_date) if sick_day!=seed_date]
+	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['alpha'][0], infected_strength[network], focal_node, sick_day)) for focal_node, sick_day in sorted(infection_date) if sick_day!=seed_date]
 
 	################################################################
 	##Calculate rate of NOT learning for all the days the node was #
@@ -96,7 +94,7 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 	healthy_nodelist = [(node, healthy_day1, healthy_day2) for node in node_health_new if node_health_new[node].has_key(0) for healthy_day1, healthy_day2 in node_health_new[node][0]]
 	
 	for focal_node,healthy_day1, healthy_day2 in sorted(healthy_nodelist):
-		lambda_list = [1-calculate_lambda1(p['beta'][0],p['alpha'][0], infected_strength, focal_node, date) for date in range(healthy_day1, healthy_day2+1)]
+		lambda_list = [1-calculate_lambda1(p['beta'][0],p['alpha'][0], infected_strength[network], focal_node, date) for date in range(healthy_day1, healthy_day2+1)]
 		overall_not_learn.append(sum([np.log(num) for num in lambda_list]))
 
 
@@ -104,17 +102,16 @@ def log_likelihood(parameters, data, null_comparison, diagnosis_lag,  recovery_p
 	## Calculate overall log likelihood                       #
 	########################################################### 
 	loglike = sum(overall_learn) + sum(overall_not_learn)
-
 	if loglike == -np.inf or np.isnan(loglike):return -np.inf
 	else: return loglike
 
 ###############################################################################
-def calculate_lambda1(beta1, alpha1, infected_strength, focal_node, date):
+def calculate_lambda1(beta1, alpha1, infected_strength_network, focal_node, date):
 	r""" This function calculates the infection potential of the 
 	focal_node based on (a) its infected_strength at the previous time step (date-1),
 	and (b) tranmission potential unexplained by the individual's network connections."""
 
-	return 1-np.exp(-(beta1*infected_strength[focal_node][date-1] + alpha1))
+	return 1-np.exp(-(beta1*infected_strength_network[focal_node][date-1] + alpha1))
 
 ################################################################################
 def calculate_infected_strength(node, time1, health_data_new, G):
@@ -283,13 +280,32 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 		
 		
 	##############################################################################
-	if verbose: print ("burn in......")
-	sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, recovery_daylist, null_comparison_data), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)) 
+	if not diagnosis_lag:
+		##calculating infection data outside loglik to speed up computations
+		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
+
+		infected_strength={key:{} for key in G_raw}
+		for network in G_raw:
+			for node in nodelist: 
+				infected_strength[network][node] = {time: calculate_infected_strength(node, time, health_data, G_raw[network]) for time in G_raw[network].keys()}
+
+		
+	else: 
+		infection_date = None
+		infected_strength=None
+	
+	##############################################################################
+	
+	sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, infection_date, infected_strength, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, recovery_daylist, null_comparison_data), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)) 
 	
 	#Run user-specified burnin
+	if verbose: print ("burn in......")
+	start = time.time()
 	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = nburn)): 
-		if verbose:print("burnin progress"), (100 * float(i) / nburn)
+		end = time.time()
+		if verbose:print("burnin progress and time"), (100 * float(i) / nburn), end-start
 		else: pass
+		start = time.time()
 		
 	# Reset the chain to remove the burn-in samples
 	sampler.reset()	

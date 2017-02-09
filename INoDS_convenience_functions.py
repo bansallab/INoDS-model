@@ -20,6 +20,8 @@ def create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dyna
 
 
 	if not is_network_dynamic:
+		if "timestep" in header:
+			raise ValueError("Network dynamic set as False but the infection data has timesteps!")
 		n_edges = len(df.index)
 		timelist = [[num]*n_edges for num in xrange(time_max+1)]
 		timelist = [val for sublist in timelist for val in sublist]

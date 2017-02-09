@@ -257,7 +257,6 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 		starting_guess[:, :, 0] = np.random.uniform(low = 0.0001, high =1, size=(ntemps, nwalkers))
 		null_comparison_data = parameter_estimate
 
-
 	else: 
 		G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date =data		
 		######################################
@@ -373,7 +372,11 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		sampler1 = sampler.flatchain[0, :, 0]
 		bins = [0]+[ss.randint.cdf(num, 0, N_networks) for num in xrange(N_networks)]
 		hist = np.histogram(sampler1, bins)[0]
-		print ("# times models visited"), [num for num in xrange(N_networks)], hist
+		print ("# times models visited. First model is HA. Rest are null"), hist
+		ha = hist[0]
+		nulls = hist[1:]
+		ext_val = [int(num>ha) for num in nulls]
+		print ("p-value of network hypothesis"), sum(ext_val)/(1.*len(ext_val))
 		ind = [num for num in xrange(N_networks)]
 			
 		########pretty matplotlib figure format

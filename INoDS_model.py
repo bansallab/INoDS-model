@@ -121,7 +121,6 @@ def calculate_lambda1(beta1, alpha1, infected_strength_network, focal_node, date
 	r""" This function calculates the infection potential of the 
 	focal_node based on (a) its infected_strength at the previous time step (date-1),
 	and (b) tranmission potential unexplained by the individual's network connections."""
-
 	return 1-np.exp(-(beta1*infected_strength_network[focal_node][date-1] + alpha1))
 
 ################################################################################
@@ -132,6 +131,7 @@ def calculate_infected_strength(node, time1, health_data_new, G):
 	
 	## infected strength is sum of all edge weights of focal nodes connecting to infected nodes
 	## NOTE: health_data_new[node_i].get(time1) checks if time1 is present in health_data[node_i] AND if the value is 1
+
 	strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if node in G[time1].nodes() and health_data_new[node_i].get(time1)]
 	return sum(strength)
 
@@ -217,9 +217,9 @@ def summary(samples):
     r"""Calculate mean and standard deviation of the sampler chains """
   
     mean = samples.mean(0)
-    mean = [round(num,3) for num in mean]
+    mean = [round(num,5) for num in mean]
     sigma = samples.std(0)
-    sigma = [round(num,3) for num in sigma]
+    sigma = [round(num,5) for num in sigma]
     return mean
 
 ##############################################################################
@@ -350,13 +350,13 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		parameter_estimate = summary(samples)
 		print ("paramter estimate of network hypothesis"), parameter_estimate
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
-		if recovery_prob!=np.inf:
-			fig = corner.corner(sampler.flatchain[0, :, 0:3], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$", "$rho$"], truths= true_value, truth_color ="red")
-		else:
-			fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
+		#if recovery_prob!=np.inf:
+		#	fig = corner.corner(sampler.flatchain[0, :, 0:3], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$", "$rho$"], truths= true_value, truth_color ="red")
+		#else:
+		#	fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
 			
-		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
-		nf.plot_beta_results(sampler, true_value[0], filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
+		#fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
+		#nf.plot_beta_results(sampler, true_value[0], filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
 		logz, logzerr = log_evidence(sampler)
 		print ("Model evidence and error"), logz, logzerr
 			
@@ -378,7 +378,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		ext_val = [int(num>ha) for num in nulls]
 		print ("p-value of network hypothesis"), sum(ext_val)/(1.*len(ext_val))
 		ind = [num for num in xrange(N_networks)]
-			
+		"""	
 		########pretty matplotlib figure format
 		axis_font = {'fontname':'Arial', 'size':'16'}
 		plt.clf()
@@ -395,7 +395,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		plt.legend()
 		plt.legend(frameon=False)
 		plt.savefig(output_filename + "_" + summary_type +"_posterior.png")
-	
+		"""
 	
 
 #######################################################################
@@ -410,7 +410,7 @@ def find_aggregate_timestep(health_data):
 	return list(set(timelist))[0]
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, nodelist,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True, **kwargs4):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -421,7 +421,9 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	## node_health[node id][infection status] = tuple of (min, max) time      #
 	## period when the node is in the infection status                        #
 	###########################################################################
+	nodelist = nf.extract_nodelist(edge_filename)
 	health_data, node_health = nf.extract_health_data(health_filename, infection_type,  nodelist)
+	
 	#find the first time-period when an infection was reported 
 	seed_date = nf.find_seed_date(node_health)
 	time_min = 0
@@ -474,6 +476,8 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		true_value = truth
 		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_estimate]
 		print ("comparing network hypothesis with null..........................")
+		#reset sampler
+		sampler.reset()
 		sampler = start_sampler(data1, recovery_prob, priors,  iteration, burnin, verbose, contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag, null_comparison=True, null_networks=null_networks)
 		summary_type = "null_comparison"
 		summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)

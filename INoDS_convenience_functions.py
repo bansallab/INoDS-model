@@ -13,11 +13,15 @@ def create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dyna
 	df.columns = df.columns.str.lower()
 	header = list(df)
 	
-	if [str1 for str1 in header[:3]] != ["node1", "node2", "weight"]: 
-		raise ValueError("The first three columns in network file should be arranged as named as 'node1', 'node2', 'weight'")
+	if [str1 for str1 in header[:2]] != ["node1", "node2"]: 
+		raise ValueError("The first two columns in network file should be arranged as named as 'node1', 'node2'")
+	if "weight" not in header[2]:
+		raise ValueError("The third column in network file should contain string = weight")
 	if is_network_dynamic and (len(header)<4 or header[3] != "timestep"):
 		raise ValueError("Time-stamps are either missing or the column is not labelled as 'timestep'!")
 
+	##rename the weight column as weight
+	df.rename(columns={header[2]: 'weight'}, inplace=True)
 
 	if not is_network_dynamic:
 		if "timestep" in header:
@@ -53,6 +57,17 @@ def create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dyna
 
 
 	return G
+
+##########################################################################
+def extract_nodelist(edge_filename):
+
+	df = pd.read_csv(edge_filename)
+	node1_list = list(df["node1"].unique())
+	node2_list = list(df["node2"].unique())
+	nodelist = list(set(node1_list + node2_list))
+	##convert to string
+	nodelist = [str(node) for node in nodelist]
+	return nodelist
 #######################################################################
 def check_edge_weights(G):
 	""" Code convergence is better if the edge weights are normalized
@@ -167,7 +182,7 @@ def extract_health_data(health_filename, infection_type, nodelist, diagnosis_lag
 			
 
 	if diagnosis_lag: health_data = stitch_health_data(health_data)
-	
+
 	node_health = {}
 	for node in health_data.keys():
 		sick_list_node=[]
@@ -193,7 +208,7 @@ def extract_health_data(health_filename, infection_type, nodelist, diagnosis_lag
 				##impute the missing report of sick in health data dictionary
 				for day in range(time1, time2+1): health_data[node][day]=1
 			
-
+	
 	return health_data, node_health
 ##############################################################################
 def select_healthy_time(healthy_list_node, node, health_data, infection_type):
@@ -303,6 +318,7 @@ def find_seed_date(node_health):
 	sick_dates = [val for node in node_health.keys() for key,val in node_health[node].items() if key==1]
 	#flatten list
 	sick_dates = [item for sublist in sick_dates for item in sublist]
+	
 	#pick the first date
 	sick_dates=[num[0] for num in sick_dates]
 	

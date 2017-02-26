@@ -16,6 +16,7 @@ from scipy import signal
 import scipy.stats as ss
 import cPickle
 import time
+import pandas as pd
 np.seterr(invalid='ignore')
 np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
@@ -367,17 +368,20 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 	
 	#################################
 	if summary_type =="null_comparison":
-		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
+		#cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
 		N_networks = len(G_raw)
 		sampler1 = sampler.flatchain[0, :, 0]
 		bins = [0]+[ss.randint.cdf(num, 0, N_networks) for num in xrange(N_networks)]
 		hist = np.histogram(sampler1, bins)[0]
-		print ("# times models visited. First model is HA. Rest are null"), hist
-		ha = hist[0]
-		nulls = hist[1:]
-		ext_val = [int(num>ha) for num in nulls]
-		print ("p-value of network hypothesis"), sum(ext_val)/(1.*len(ext_val))
-		ind = [num for num in xrange(N_networks)]
+		df = pd.DataFrame(hist)
+		file_name = output_filename + "_" + summary_type +  ".csv"
+		df.to_csv(file_name)
+		#print ("# times models visited. First model is HA. Rest are null"), hist
+		#ha = hist[0]
+		#nulls = hist[1:]
+		#ext_val = [int(num>ha) for num in nulls]
+		#print ("p-value of network hypothesis"), sum(ext_val)/(1.*len(ext_val))
+		#ind = [num for num in xrange(N_networks)]
 		"""	
 		########pretty matplotlib figure format
 		axis_font = {'fontname':'Arial', 'size':'16'}

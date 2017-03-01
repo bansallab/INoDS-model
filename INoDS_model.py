@@ -312,7 +312,7 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 	sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, recovery_daylist, null_comparison_data), logpargs=(priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)) 
 	
 	#Run user-specified burnin
-	if verbose: print ("burn in......")
+	print ("burn in......")
 	start = time.time()
 	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = nburn)): 
 		end = time.time()
@@ -414,7 +414,7 @@ def find_aggregate_timestep(health_data):
 	return list(set(timelist))[0]
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True, parameter_estimate=True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -460,21 +460,26 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		if recovery_prob!=np.inf: recovery_daylist = nf.return_potention_recovery_date(node_health, time_max, G_raw)	
 	
 	##########################################################################
+	if parameter_estimate:
 	##Step 1: Estimate unknown parameters of network hypothesis HA.
-	true_value = truth[:-1]
-	data1 = [G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date]
-	print ("estimating model parameters.........................")
-	sampler  = start_sampler(data1,  recovery_prob, priors,  iteration, burnin, verbose,  contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
-	summary_type = "parameter_estimate"
-	summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
+		true_value = truth[:-1]
+		data1 = [G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date]
+		print ("estimating model parameters.........................")
+		sampler  = start_sampler(data1,  recovery_prob, priors,  iteration, burnin, verbose,  contact_daylist, recovery_daylist, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
+		summary_type = "parameter_estimate"
+		summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
 	#############################################################################
-
+	if not parameter_estimate and sum(truth)==0:
+		raise ValueError("Parameter estimate is set to False and no truth is supplied!")
 
 	########################################################################
 	##Step 2: Perform hypothesis testing by comparing HA against null networks
 	if null_comparison:
-		samples = flatten_chain(sampler)
-		parameter_estimate = summary(samples)
+		if parameter_estimate:
+			samples = flatten_chain(sampler)
+			parameter_estimate = summary(samples)
+		else:
+			parameter_estimate = truth
 		print ("generating null graphs.......")
 		for num in xrange(null_networks):G_raw[num+1] = nf.randomize_network(G_raw[0])
 		true_value = truth

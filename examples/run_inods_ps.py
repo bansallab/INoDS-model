@@ -54,7 +54,7 @@ normalize_edge_weight= False
 #### run INoDS 
 ######################################
 start = time.time()
-inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, nodelist, recovery_prob, truth, null_networks, priors, iteration, burnin, diagnosis_lag=False, null_comparison=True, verbose=True, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True)
+inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, nodelist, recovery_prob, truth, null_networks, priors, iteration, burnin, diagnosis_lag=False, null_comparison=True, verbose=True, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True, parameter_estimate=False)
 
 end = time.time()
 print ("total run time="), end-start

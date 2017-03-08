@@ -132,8 +132,8 @@ def calculate_infected_strength(node, time1, health_data_new, G):
 	
 	## infected strength is sum of all edge weights of focal nodes connecting to infected nodes
 	## NOTE: health_data_new[node_i].get(time1) checks if time1 is present in health_data[node_i] AND if the value is 1
-
-	strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if node in G[time1].nodes() and health_data_new[node_i].get(time1)]
+	if node in G[time1].nodes(): strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if health_data_new[node_i].get(time1)]
+	else: strength=[]
 	return sum(strength)
 
 ################################################################################
@@ -297,8 +297,7 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 	if not diagnosis_lag:		
 		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
 		infection_date = sorted(infection_date)
-		healthy_nodelist = return_healthy_nodelist(node_health)
-		
+		healthy_nodelist = return_healthy_nodelist(node_health)	
 		infected_strength = {network:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[network]) for time in G_raw[network].keys()} for node in nodelist} for network in G_raw}
 	
 		
@@ -351,13 +350,13 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		parameter_estimate = summary(samples)
 		print ("paramter estimate of network hypothesis"), parameter_estimate
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
-		#if recovery_prob!=np.inf:
-		#	fig = corner.corner(sampler.flatchain[0, :, 0:3], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$", "$rho$"], truths= true_value, truth_color ="red")
-		#else:
-		#	fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
+		if recovery_prob!=np.inf:
+			fig = corner.corner(sampler.flatchain[0, :, 0:3], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$", "$rho$"], truths= true_value, truth_color ="red")
+		else:
+			fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
 			
-		#fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
-		#nf.plot_beta_results(sampler, true_value[0], filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
+		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
+		nf.plot_beta_results(sampler, true_value[0], filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
 		logz, logzerr = log_evidence(sampler)
 		print ("Model evidence and error"), logz, logzerr
 			
@@ -368,7 +367,6 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 	
 	#################################
 	if summary_type =="null_comparison":
-		#cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
 		N_networks = len(G_raw)
 		sampler1 = sampler.flatchain[0, :, 0]
 		bins = [0]+[ss.randint.cdf(num, 0, N_networks) for num in xrange(N_networks)]
@@ -376,13 +374,12 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		df = pd.DataFrame(hist)
 		file_name = output_filename + "_" + summary_type +  ".csv"
 		df.to_csv(file_name)
-		#print ("# times models visited. First model is HA. Rest are null"), hist
-		#ha = hist[0]
-		#nulls = hist[1:]
-		#ext_val = [int(num>ha) for num in nulls]
-		#print ("p-value of network hypothesis"), sum(ext_val)/(1.*len(ext_val))
-		#ind = [num for num in xrange(N_networks)]
-		"""	
+		ha = hist[0]
+		nulls = hist[1:]
+		ext_val = [int(num>=ha) for num in nulls]
+		print ("p-value of network hypothesis"), sum(ext_val)/(1.*len(ext_val))
+		ind = [num for num in xrange(N_networks)]
+			
 		########pretty matplotlib figure format
 		axis_font = {'fontname':'Arial', 'size':'16'}
 		plt.clf()
@@ -399,7 +396,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		plt.legend()
 		plt.legend(frameon=False)
 		plt.savefig(output_filename + "_" + summary_type +"_posterior.png")
-		"""
+		
 	
 
 #######################################################################
@@ -481,7 +478,9 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		else:
 			parameter_estimate = truth
 		print ("generating null graphs.......")
-		for num in xrange(null_networks):G_raw[num+1] = nf.randomize_network(G_raw[0])
+		for num in xrange(null_networks): 
+			print ("generating null network="), num
+			G_raw[num+1] = nf.randomize_network(G_raw[0])
 		true_value = truth
 		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_estimate]
 		print ("comparing network hypothesis with null..........................")

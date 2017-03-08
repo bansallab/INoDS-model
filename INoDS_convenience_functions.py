@@ -175,7 +175,7 @@ def extract_health_data(health_filename, infection_type, nodelist, diagnosis_lag
 		fileread = csv.reader(csvfile, delimiter = ',')
 		next(fileread, None) #skip header
 		for row in fileread: 
-			node = row[0]
+			node = str(row[0])
 			timestep = int(row[1])
 			diagnosis = int(row[2])
 			if node in nodelist:health_data[node][timestep] = diagnosis

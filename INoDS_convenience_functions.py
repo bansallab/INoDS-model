@@ -318,7 +318,6 @@ def find_seed_date(node_health):
 	sick_dates = [val for node in node_health.keys() for key,val in node_health[node].items() if key==1]
 	#flatten list
 	sick_dates = [item for sublist in sick_dates for item in sublist]
-	
 	#pick the first date
 	sick_dates=[num[0] for num in sick_dates]
 	

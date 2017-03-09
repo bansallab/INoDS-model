@@ -39,6 +39,8 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 		p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)
 		network=0 
 		G= G_raw[0]
+
+	network_min_date = min(G.keys())
 	###############################################################################################
 	##diagnosis lag==
 	##impute true infection date and recovery date (if SIR/SIRS...)
@@ -89,7 +91,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	##Calculate rate of NOT learning for all the days the node was #
 	## (either reported or inferred) healthy                       #
 	################################################################
-	overall_not_learn = [not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['alpha'][0], infected_strength[network]) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist]	
+	overall_not_learn = [not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['alpha'][0], infected_strength[network], seed_date, network_min_date) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist]	
 
 	###########################################################
 	## Calculate overall log likelihood                       #
@@ -99,11 +101,11 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	else: return loglike
 
 #############################################################################
-def not_learned_rate(focal_node, healthy_day1, healthy_day2, beta, alpha, infected_strength_network):
+def not_learned_rate(focal_node, healthy_day1, healthy_day2, beta, alpha, infected_strength_network, seed_date, network_min_date):
 	r""" Calculate 1- lambda for all uninfected days and returns 
 	sum of log(1-lambdas)"""
 
-	lambda_list = [1-calculate_lambda1(beta, alpha, infected_strength_network, focal_node, date) for date in range(healthy_day1, healthy_day2+1)]
+	lambda_list = [1-calculate_lambda1(beta, alpha, infected_strength_network, focal_node, date) for date in [date1 for date1 in range(healthy_day1, healthy_day2+1) if date1!=seed_date and date1>network_min_date]]
 	return sum([np.log(num) for num in lambda_list])
 
 ##############################################################################

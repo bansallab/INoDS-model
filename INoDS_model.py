@@ -86,7 +86,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## first  report of the infection in the network               #
 	################################################################
 	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['alpha'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
-
+	#print ("overall learn"), [infected_strength[network][focal_node][sick_day-1] for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
 	################################################################
 	##Calculate rate of NOT learning for all the days the node was #
 	## (either reported or inferred) healthy                       #
@@ -96,6 +96,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	###########################################################
 	## Calculate overall log likelihood                       #
 	########################################################### 
+	#print p['beta'][0], p['alpha'][0], sum(overall_learn), sum(overall_not_learn),  sum(overall_learn) + sum(overall_not_learn)
 	loglike = sum(overall_learn) + sum(overall_not_learn)
 	if loglike == -np.inf or np.isnan(loglike):return -np.inf
 	else: return loglike
@@ -301,7 +302,7 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 		infection_date = sorted(infection_date)
 		healthy_nodelist = return_healthy_nodelist(node_health)	
 		infected_strength = {network:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[network]) for time in G_raw[network].keys()} for node in nodelist} for network in G_raw}
-	
+			
 		
 	else: 
 		infection_date = None
@@ -413,7 +414,7 @@ def find_aggregate_timestep(health_data):
 	return list(set(timelist))[0]
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True, parameter_estimate=True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  recovery_prob, truth, null_networks, priors,  iteration, burnin, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True, parameter_estimate=True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -433,7 +434,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	time_max = max([key for node in health_data.keys() for key in health_data[node].keys()])
 	G_raw = {}
 	## read in the dynamic network hypthosis (HA)
-	G_raw[0] = nf.create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dynamic, time_max)
+	G_raw[0] = nf.create_dynamic_network(edge_filename,  edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max)
 	contact_daylist = None
 	recovery_daylist = None	
 	nsick_param = 0

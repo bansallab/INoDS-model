@@ -6,7 +6,7 @@ from random import shuffle
 import matplotlib.pyplot as plt
 import pandas as pd
 #################################################################################
-def create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dynamic, time_max):
+def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max):
 
 	
 	df = pd.read_csv(edge_filename)
@@ -32,8 +32,11 @@ def create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dyna
 		df=pd.concat([df]*(time_max+1), ignore_index=True)
 		df['timestep']=timelist
 
+	if edge_weights_to_binary:df['weight']=1
 	
-	if normalize_edge_weight:
+	if edge_weights_to_binary and normalize_edge_weight:
+		raise ValueError("Cannot convert edge weights to binary AND normalize edge weights! Choose one")
+	if not edge_weights_to_binary and normalize_edge_weight:
 		## If the user asks for edge weight normalization, then calculate total edge weights
 		## at each time step
 		df_sum = df.groupby('timestep')['weight'].sum()
@@ -45,7 +48,7 @@ def create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dyna
 
 	
 	G = {}
-	for time1 in df["timestep"].unique():  G[time1] = nx.Graph()
+	for time1 in range(df["timestep"].min(), df["timestep"].max()+1):  G[time1] = nx.Graph()
 	for time1 in G:
 		df_sub= df.loc[df['timestep'] == time1]
 		df_sub['node1'] = df_sub['node1'].astype(str)
@@ -55,7 +58,12 @@ def create_dynamic_network(edge_filename, normalize_edge_weight, is_network_dyna
 		edge_attr = dict(zip(zip(df_sub.node1, df_sub.node2), df_sub.weight))
 		nx.set_edge_attributes(G[time1], 'weight', edge_attr)
 
-
+	if not edge_weights_to_binary and normalize_edge_weight:	
+		for time1 in G:
+			wt = 0
+			for (n1,n2) in G[time1].edges(): wt+=G[time1][n1][n2]["weight"]
+		if wt!=1: raise ValueError("Could not normalize edge weight. Make sure that there are no multi-edges")
+	
 	return G
 
 ##########################################################################

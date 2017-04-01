@@ -351,7 +351,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 	if summary_type =="parameter_estimate":
 		samples = flatten_chain(sampler)
 		parameter_estimate = summary(samples)
-		print ("paramter estimate of network hypothesis"), parameter_estimate
+		print ("parameter estimate of network hypothesis"), parameter_estimate
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
 		if recovery_prob!=np.inf:
 			fig = corner.corner(sampler.flatchain[0, :, 0:3], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$", "$rho$"], truths= true_value, truth_color ="red")
@@ -482,7 +482,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 			parameter_estimate = truth
 		print ("generating null graphs.......")
 		for num in xrange(null_networks): 
-			print ("generating null network="), num
+			if verbose: print ("generating null network="), num
 			G_raw[num+1] = nf.randomize_network(G_raw[0])
 		true_value = truth
 		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_estimate]

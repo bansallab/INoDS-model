@@ -142,10 +142,17 @@ def randomize_network(G1):
 		for num in xrange(len(G1[time].edges())): #for each edge in G1[time]
 			#select two random nodes from G2[time]
 			condition_met = False # skip over node pairs that already have an edge
+			counter=0
 			while not condition_met:
 				node1, node2 = np.random.choice(G2[time].nodes(), 2, replace=False)
 				if not (G2[time].has_edge(node1, node2) or G1[time].has_edge(node1, node2)): 
 					condition_met = True
+					G2[time].add_edge(node1, node2)
+					G2[time][node1][node2]["weight"] = wtlist.pop()
+				else:counter+=1
+				if counter>1000:
+				##Give up after 1000 attempts
+					condition_met=True
 					G2[time].add_edge(node1, node2)
 					G2[time][node1][node2]["weight"] = wtlist.pop()
 		
@@ -356,7 +363,8 @@ def calculate_mean_temporal_jaccard(g1, g2):
 		w11 = len(list(set(edges1) & set(edges2)))
 		w10 = len(list(set(edges1) - set(edges2)))
 		w01 =  len(list(set(edges2) - set(edges1)))
-		ratio = w11/ (1.*(w11+w10+w01))
+		if (w11+w10+w01)>0:ratio = w11/ (1.*(w11+w10+w01))
+		else:ratio=0
 		jlist.append(ratio)
 	return np.mean(jlist)
 ########################################################################

@@ -361,7 +361,9 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
 		nf.plot_beta_results(sampler, true_value[0], filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
 		logz, logzerr = log_evidence(sampler)
-		print ("Model evidence and error"), logz, logzerr
+		evidence = np.exp(logz)
+		error = evidence*logzerr
+		print ("Model evidence and error"), evidence, error
 			
 	stats={}
 	try:stats['a_exp'], stats['a_int'] = autocor_checks(sampler)

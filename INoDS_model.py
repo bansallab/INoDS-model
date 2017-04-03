@@ -273,9 +273,9 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 		####################### 
 		##Adjust temperature ladder
 		#######################
-		betas = np.linspace(0, -0.04, 10)
+		betas = np.linspace(0, -3, 15)
 		betas = 10**(np.sort(betas)[::-1])
-		ntemps = 10
+		ntemps = 15
 		
 		########################################### 
 		###set starting positions for the walker
@@ -332,6 +332,29 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 		if verbose:print("sampling progress"), (100 * float(i) / niter)
 		else: pass
 		
+	#######################################
+	#checks for model evidence
+	#mean_logls = np.mean(sampler.lnlikelihood.reshape((ntemps, -1)), axis=1)
+	#betas = sampler.betas
+	#plt.semilogx(betas, mean_logls, "-o") 
+ 	#plt.xlabel(r'$\beta$')
+	#plt.ylabel(r'$\beta \left\langle \ln L \right\rangle_\beta$')
+ 	#plt.title('Thermodynamic Integration Integrand')
+	#plt.savefig("plot.png")
+	
+	#logls = sampler.lnlikelihood
+	#logls = logls[:, :, 0:]  # Drop the burn-in steps 
+
+	#mean_logls2 = np.mean(np.mean(logls, axis=1)[:, 0:], axis=1)
+	#lnZ_RRS = -np.dot(mean_logls2, np.diff(np.concatenate((betas, np.array([0])))))
+
+	
+	#logls_ave = np.mean(logls, axis=1)  # Average over the steps 
+	#logls_ave = np.mean(logls_ave, axis=1) # Average over the walkers
+	#lnZ_trap = -np.trapz(logls_ave, betas)
+	#print ("RRS lnZ = "),lnZ_RRS
+	#print ("trap lnZ="), lnZ_trap
+	#########################################################
 		
 	##############################
 	#The resulting samples are stored as the sampler.chain property:
@@ -364,6 +387,8 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		evidence = np.exp(logz)
 		error = evidence*logzerr
 		print ("Model evidence and error"), evidence, error
+
+
 			
 	stats={}
 	try:stats['a_exp'], stats['a_int'] = autocor_checks(sampler)

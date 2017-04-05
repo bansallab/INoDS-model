@@ -96,7 +96,6 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	###########################################################
 	## Calculate overall log likelihood                       #
 	########################################################### 
-	#print p['beta'][0], p['alpha'][0], sum(overall_learn), sum(overall_not_learn),  sum(overall_learn) + sum(overall_not_learn)
 	loglike = sum(overall_learn) + sum(overall_not_learn)
 	if loglike == -np.inf or np.isnan(loglike):return -np.inf
 	else: return loglike
@@ -125,7 +124,10 @@ def calculate_lambda1(beta1, alpha1, infected_strength_network, focal_node, date
 	r""" This function calculates the infection potential of the 
 	focal_node based on (a) its infected_strength at the previous time step (date-1),
 	and (b) tranmission potential unexplained by the individual's network connections."""
-	return 1-np.exp(-(beta1*infected_strength_network[focal_node][date-1] + alpha1))
+	
+	prob_not_infected = np.exp(-(beta1*infected_strength_network[focal_node][date-1] + alpha1))
+	#avoid returning 1 which will lead lnlike to be -np.inf
+	return min(1-prob_not_infected, 0.99999999)
 
 ################################################################################
 def calculate_infected_strength(node, time1, health_data_new, G):
@@ -185,7 +187,7 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, n
 def autocor_checks(sampler, itemp=0, outfile=None):
 	r""" Perform autocorrelation checks"""
 
-	print('Chains contain samples (after burnin)='), sampler.chain.shape[-2]
+	print('Chains contain samples after burnin (across all walkers)='), sampler.chain.shape[-2]*sampler.chain.shape[1]
     	a_exp = sampler.acor[0]
 	a_int = np.max([autocorr.integrated_time(sampler.chain[itemp, i, :]) for i in range(sampler.chain.shape[1])], 0)
 	a_exp = max(a_exp)
@@ -242,7 +244,7 @@ def log_prior(parameters, priors, null_comparison, diagnosis_lag, nsick_param, r
 		if (p['diag_lag'][0] < 0.000001).any() or (p['diag_lag'][0] > 1).any():return -np.inf
 		if recovery_prob != np.inf:
 			if p['gamma'][0] < recovery_prob[0]  or  p['gamma'][0] >  recovery_prob[1]: return -np.inf 
-
+	#print ss.powerlaw.logpdf((1-p['alpha'][0]), 4)
     	return  ss.powerlaw.logpdf((1-p['alpha'][0]), 4)
 #######################################################################
 def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_daylist, recovery_daylist, nsick_param, diagnosis_lag=False, null_comparison=False, **kwargs3):
@@ -260,7 +262,7 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 		starting_guess = np.zeros((ntemps, nwalkers, ndim))
 		starting_guess[:, :, 0] = np.random.uniform(low = 0.0001, high =1, size=(ntemps, nwalkers))
 		null_comparison_data = parameter_estimate
-
+		
 	else: 
 		G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date =data		
 		######################################
@@ -273,7 +275,7 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 		####################### 
 		##Adjust temperature ladder
 		#######################
-		betas = np.linspace(0, -3, 15)
+		betas = np.linspace(0, -2, 15)
 		betas = 10**(np.sort(betas)[::-1])
 		ntemps = 15
 		
@@ -290,7 +292,6 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 		if diagnosis_lag:
 			if recovery_prob != np.inf: starting_guess[:, :, 2] = np.random.uniform(low = recovery_prob[0], high = recovery_prob[1], size=(ntemps, nwalkers))
 			starting_guess[:, :, ndim_base: ndim_base+nsick_param] = np.random.uniform(low = 0.001, high = 1,size=(ntemps, nwalkers, nsick_param))
-
 		
 		
 	################################################################################
@@ -315,12 +316,9 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 	
 	#Run user-specified burnin
 	print ("burn in......")
-	start = time.time()
 	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = nburn)): 
-		end = time.time()
 		if verbose:print("burnin progress and time"), (100 * float(i) / nburn), end-start
 		else: pass
-		start = time.time()
 		
 	# Reset the chain to remove the burn-in samples
 	sampler.reset()	
@@ -336,7 +334,8 @@ def start_sampler(data, recovery_prob, priors,  niter, nburn, verbose,  contact_
 	#checks for model evidence
 	#mean_logls = np.mean(sampler.lnlikelihood.reshape((ntemps, -1)), axis=1)
 	#betas = sampler.betas
-	#plt.semilogx(betas, mean_logls, "-o") 
+	#betas = [np.log(beta) for beta in betas]
+	#plt.plot(betas, mean_logls, "-o") 
  	#plt.xlabel(r'$\beta$')
 	#plt.ylabel(r'$\beta \left\langle \ln L \right\rangle_\beta$')
  	#plt.title('Thermodynamic Integration Integrand')
@@ -386,7 +385,8 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		logz, logzerr = log_evidence(sampler)
 		evidence = np.exp(logz)
 		error = evidence*logzerr
-		print ("Model evidence and error"), evidence, error
+		print ("Log Bayes evidence and error"), logz, logzerr
+		print ("Transformed evidence and error"), evidence, error
 
 
 			

@@ -260,7 +260,7 @@ def select_sick_times(sick_list_node, node, health_data):
 	sick_times = []
 	#min date = if there is (any report before the focal date AND the last report therin is healthy) OR there is no report before the day
 	min_date = [time for time in sick_list_node if (len([val for key, val in health_data[node].items() if key<time])>0 and health_data[node][max([key for key in health_data[node] if key < time])]==0) or len([val for key, val in health_data[node].items() if key<time])==0]
-	#max date = if there is (any report after the focal date AND the first report theirin is sick) OR there is no report after the focal date
+	#max date = if there is (any report after the focal date AND the first report theirin is healthy) OR there is no report after the focal date
 	max_date = [time for time in sick_list_node if (len([val for key, val in health_data[node].items() if key> time])>0 and health_data[node][min([key for key in health_data[node] if key > time])]==0) or len([val for key, val in health_data[node].items() if key>time])==0]
 	
 	min_date = sorted(min_date)
@@ -303,7 +303,7 @@ def return_contact_days_sick_nodes(node_health, seed_date, G_raw):
 
 #########################################################################
 def return_potention_recovery_date(node_health, time_max,  G_raw):
-	r""" For SIR model. Returns the potential time-points of recovery for each 
+	r""" For SIR/SIS model. Returns the potential time-points of recovery for each 
 	infected focal node"""
 	
 	recovery_daylist = {}

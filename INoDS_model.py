@@ -43,7 +43,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	network_min_date = min(G.keys())
 	###############################################################################################
 	##diagnosis lag==
-	##impute true infection date and recovery date (if SIR/SIRS...)
+	##impute true infection date and recovery date (if SIR/SIS...)
 	## infection_date = date picked as a day between last healthy report and first sick report
 	## and when the degree of node was >0 the previous day
 	##recovery_date = date picked as day with uniform probability between first reported sick day and first 
@@ -54,10 +54,13 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	if diagnosis_lag:
 		infection_date = []
 		diag_list = p['diag_lag'][0]
-		diag_list = [max(num,0.000001) and min(num,1) for num in diag_list]
+		#ensure that all numbers in diag_lsit are between 0.000001 and 1
+		diag_list = [min(max(num,0.000001),1) for num in diag_list]
 		## iterate through focal node, infection time-period and diagnosis lag 
 		for (node, time1, time2), diag_lag in zip(sorted(contact_daylist[network]), diag_list):
+			## compute lagged time for each infection time based on diag_list
 			lag = int(ss.randint.ppf(diag_lag, 0,  len(contact_daylist[network][(node, time1, time2)])))
+			## pick out corresponding date from contact_daylist
 			new_infection_time  = contact_daylist[network][(node, time1, time2)][lag]
 			new_recovery_time = time2
 			infection_date.append((node, new_infection_time))
@@ -71,6 +74,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 				if new_recovery_time<= time2: return -np.inf
 			node_health_new[node][1].remove((time1, time2))
 			node_health_new[node][1].append((new_infection_time, new_recovery_time))	
+			
 			for day in range(new_infection_time, new_recovery_time+1): health_data_new[node][day]=1
 	
 			infected_strength={}
@@ -187,14 +191,56 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, n
 def autocor_checks(sampler, itemp=0, outfile=None):
 	r""" Perform autocorrelation checks"""
 
+	## sampler shape is (ntemp, nwalkers, niter, dim). Chain containing samples is niter*nwalkers
+	#a_exp = sampler.acor[0]
+	#a_exp = max(a_exp)
+	#print('Additional burn-in required'), int(10 * a_exp)
+	
 	print('Chains contain samples after burnin (across all walkers)='), sampler.chain.shape[-2]*sampler.chain.shape[1]
-    	a_exp = sampler.acor[0]
-	a_int = np.max([autocorr.integrated_time(sampler.chain[itemp, i, :]) for i in range(sampler.chain.shape[1])], 0)
-	a_exp = max(a_exp)
-	a_int = max(a_int)
-	print('Additional burn-in required'), int(10 * a_exp)
-	print('After burn-in, each chain produces one independent sample per steps ='), int(a_int)
-	return a_exp, a_int
+	#a_int = np.max([autocorr.integrated_time(sampler.chain[itemp, i, :], c=5) for i in range(sampler.chain.shape[1])], 0)
+	#a_int = max(a_int)
+	#print('Each chain produces one independent sample per steps ='), int(a_int)
+	print ('Gelman-Rubin covergence test passed?'), gelman_rubin(sampler.chain[0,:,:,:])
+	
+
+##############################################################
+def gelman_rubin(chain_ensemble):
+    """
+    returns: Gelman-Rubin scale reduction factor for set of chains
+    Parameters:
+    chain_ensemble: the ensemble of chains to use; this paramater expects that the first nsteps/2 of each chain have already been discarded;
+    chain_ensemble should be an array of the format nchains x nsteps x ndim
+    code adapted from function https://github.com/catherinezucker/dustcurve/blob/7b018b47fd782878a2778b44756e32eafeae235f/dustcurve/diagnostics.py available under GNU open source license
+    """
+
+    nruns,nsteps,ndim=chain_ensemble.shape
+
+    #calculate the mean of each chain
+    mean=np.mean(chain_ensemble,axis=1)
+
+    #calculate the variance of each chain
+    var=np.var(chain_ensemble,axis=1, ddof=1)
+
+    #calculate the mean of the variances of each chain
+    # W is the average within-chain variance
+    W=np.mean(var, axis=0)
+
+    #calculate the variance of the chain means multiplied by n
+    # B is between chain variance
+    B=nsteps*np.var(mean, axis=0, ddof=1)
+    #calculate estimated variance:
+    sigmasq=(1-1/nsteps) * W + (1/nsteps)*B
+
+    #sampling variability
+    Vhat=sigmasq+B/(nruns*nsteps)
+
+    #degree of freedo
+    d = 2*Vhat**2/np.var(Vhat)
+
+    #calculate the potential scale reduction factor
+    Rhat = np.sqrt((d+3)*Vhat/((d+1)*W))
+
+    return all(num<1.1 for num in Rhat)
 
 #####################################################################
 def log_evidence(sampler):
@@ -216,7 +262,7 @@ def flatten_chain(sampler):
     c = sampler.chain
     c = c[0,:, :]
     ct = c.reshape((np.product(c.shape[:-1]), c.shape[-1]))
-    return c.reshape((np.product(c.shape[:-1]), c.shape[-1]))
+    return ct
 
 #######################################################################
 def summary(samples):
@@ -390,9 +436,8 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 
 
 			
-	stats={}
-	try:stats['a_exp'], stats['a_int'] = autocor_checks(sampler)
-	except: print ("Warning!! Autocorrelation checks could not be performed. Sampler chains may be too short")        
+	autocor_checks(sampler)
+	#except: print ("Warning!! Autocorrelation checks could not be performed. Sampler chains may be too short")        
 	
 	
 	#################################

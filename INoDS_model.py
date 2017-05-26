@@ -158,7 +158,6 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, n
 			('gamma', np.float),
 			('diag_lag', np.float, nsick_param),
 			('model', np.float)]))
-	
 		return arr.view(np.dtype([('beta', np.float),
 			('alpha', np.float),
 			('gamma', np.float),
@@ -341,7 +340,7 @@ def start_sampler(data, recovery_prob, priors, niter, min_burnin, max_burnin, ve
 		### Set number of parameters to estimate
 		######################################
 		ndim_base = 2
-		if diagnosis_lag: ndim_base += (nsick_param+1)
+		if recovery_prob != np.inf: ndim_base += 1
 		ndim = ndim_base+nsick_param
 		
 		####################### 

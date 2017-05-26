@@ -6,6 +6,16 @@ from random import shuffle
 import matplotlib.pyplot as plt
 import pandas as pd
 #################################################################################
+def extract_maxtime(edge_filename, health_filename):
+	r""" Return min of maximum time across edge_filename and health_filename
+	"""
+	df = pd.read_csv(edge_filename)
+	df.columns = df.columns.str.lower()
+	df2 = pd.read_csv(health_filename)
+	df2.columns = df2.columns.str.lower()
+	return min(max(df['timestep']), max(df2['timestep']))
+
+#################################################################################
 def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max):
 
 	
@@ -23,6 +33,9 @@ def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge
 	##rename the weight column as weight
 	df.rename(columns={header[2]: 'weight'}, inplace=True)
 
+	## remove all zero weighted edges
+	df = df[df.weight!=0]
+
 	if not is_network_dynamic:
 		if "timestep" in header:
 			raise ValueError("Network dynamic set as False but the infection data has timesteps!")
@@ -39,12 +52,11 @@ def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge
 	if not edge_weights_to_binary and normalize_edge_weight:
 		## If the user asks for edge weight normalization, then calculate total edge weights
 		## at each time step
-		df_sum = df.groupby('timestep')['weight'].sum()
-		total_weight= df_sum.to_dict()
-		for time1 in total_weight:
-			#replace  raw weights with normalized weights
-			df.ix[df.timestep==time1, "weight"] = df["weight"]/total_weight[time1] 
-			
+		print ("before converting"), min(df['weight']), max(df['weight'])
+		min_edgewt = min(df['weight'])
+		df['weight'] = df["weight"]/min_edgewt
+		print ("min weight"), min_edgewt, min(df['weight']), max(df['weight'])
+		
 
 	
 	G = {}
@@ -58,11 +70,7 @@ def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge
 		edge_attr = dict(zip(zip(df_sub.node1, df_sub.node2), df_sub.weight))
 		nx.set_edge_attributes(G[time1], 'weight', edge_attr)
 
-	if not edge_weights_to_binary and normalize_edge_weight:	
-		for time1 in G:
-			wt = 0
-			for (n1,n2) in G[time1].edges(): wt+=G[time1][n1][n2]["weight"]
-		if wt!=1: raise ValueError("Could not normalize edge weight. Make sure that there are no multi-edges")
+
 	
 	return G
 
@@ -178,7 +186,7 @@ def stitch_health_data(health_data):
 	
 	return health_data	
 #######################################################################
-def extract_health_data(health_filename, infection_type, nodelist, diagnosis_lag=False):
+def extract_health_data(health_filename, infection_type, nodelist, time_max, diagnosis_lag=False):
 
 	r"""node_health is a dictionary of dictionary. Primary key = node id.
 	Secondary key = 0/1. 0 (1) key stores chunk of days when the node is **known** to be healthy (infected).
@@ -194,7 +202,7 @@ def extract_health_data(health_filename, infection_type, nodelist, diagnosis_lag
 			node = str(row[0])
 			timestep = int(row[1])
 			diagnosis = int(row[2])
-			if node in nodelist:health_data[node][timestep] = diagnosis
+			if node in nodelist and timestep<=time_max:health_data[node][timestep] = diagnosis
 			
 
 	if diagnosis_lag: health_data = stitch_health_data(health_data)
@@ -283,7 +291,7 @@ def return_contact_days_sick_nodes(node_health, seed_date, G_raw):
 		##for all time periods when the node was reported sick
 		for time1, time2 in sick_days:
 			#default day start
-			day_start =0
+			day_start =1
 			if node_health[node].has_key(0):
 				##choose all uninfected time-periods before the focal sick period
 				healthy_dates = [(healthy_day1, healthy_day2) for healthy_day1, healthy_day2 in node_health[node][0] if healthy_day2 < time1]
@@ -296,6 +304,7 @@ def return_contact_days_sick_nodes(node_health, seed_date, G_raw):
 			##contact_daylist is dictionary. Primary key = network type. Could be network hypothesis or null network
 			## secondary key (node1, time1, time2) indicated focal node and its infected time period
 			##values are the time-points when the node could have potentially contracted infection
+		
 			for network in G_raw:
 				#choose only those days where nodes has contact the previous day
 				contact_daylist[network][(node, time1, time2)] =[day for day in range(day_start+1, time1+1) if G_raw[network][day-1].degree(node)>0]

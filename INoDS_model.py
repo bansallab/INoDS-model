@@ -548,7 +548,7 @@ def find_aggregate_timestep(health_data):
 	return list(set(timelist))[0]
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  recovery_prob, truth, null_networks, priors,  iteration, min_burnin=50, max_burnin=5000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=True, is_network_dynamic=True, parameter_estimate=True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  recovery_prob, truth, null_networks, priors,  iteration, min_burnin=50, max_burnin=5000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -560,12 +560,13 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	## period when the node is in the infection status                        #
 	###########################################################################
 	nodelist = nf.extract_nodelist(edge_filename)
-	health_data, node_health = nf.extract_health_data(health_filename, infection_type,  nodelist)
+	time_min = 0
+	time_max = nf.extract_maxtime(edge_filename, health_filename)
+	health_data, node_health = nf.extract_health_data(health_filename, infection_type, nodelist, time_max, diagnosis_lag)
 	
 	#find the first time-period when an infection was reported 
 	seed_date = nf.find_seed_date(node_health)
-	time_min = 0
-	time_max = max([key for node in health_data.keys() for key in health_data[node].keys()])
+
 	G_raw = {}
 	## read in the dynamic network hypthosis (HA)
 	G_raw[0] = nf.create_dynamic_network(edge_filename,  edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max)

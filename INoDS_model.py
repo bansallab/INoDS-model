@@ -49,39 +49,50 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	##recovery_date = date picked as day with uniform probability between first reported sick day and first 
 	##healthy date after sick report
 	##################################################################################################
-	
-	######################################################################
+	start1= time.time()
 	if diagnosis_lag:
-		infection_date = []
-		diag_list = p['diag_lag'][0]
-		#ensure that all numbers in diag_lsit are between 0.000001 and 1
-		diag_list = [min(max(num,0.000001),1) for num in diag_list]
-		## iterate through focal node, infection time-period and diagnosis lag 
-		for (node, time1, time2), diag_lag in zip(sorted(contact_daylist[network]), diag_list):
-			## compute lagged time for each infection time based on diag_list
-			lag = int(ss.randint.ppf(diag_lag, 0,  len(contact_daylist[network][(node, time1, time2)])))
-			## pick out corresponding date from contact_daylist
-			new_infection_time  = contact_daylist[network][(node, time1, time2)][lag]
-			new_recovery_time = time2
-			infection_date.append((node, new_infection_time))
-			
-			if recovery_prob!=np.inf:
-				max_recovery_date = recovery_daylist[(node, time1, time2)]
-				##uniform ppf is defined as (prob, lower_limite, upper_limit - lower_limit)
-				new_recovery_time = int(ss.uniform.ppf(p['gamma'][0], new_infection_time, max_recovery_date-new_infection_time))
-				## if the proposed recovery date coincides with a date when the indiv was reported sick then return invalid
-				
-				if new_recovery_time<= time2: return -np.inf
-			node_health_new[node][1].remove((time1, time2))
-			node_health_new[node][1].append((new_infection_time, new_recovery_time))	
-			
-			for day in range(new_infection_time, new_recovery_time+1): health_data_new[node][day]=1
-	
-			infected_strength={}
-			infected_strength[network] = {node:{time: calculate_infected_strength(node, time, health_data_new, G) for time in G.keys()} for node in nodelist}
 
-			healthy_nodelist = return_healthy_nodelist(node_health_new)
-			infection_date = sorted(infection_date)
+		###ensure that the proposal do not include 0 and are <1 
+		diag_list = [min(max(num,0.000001),1) for num in p['diag_lag'][0]]
+	
+		##compute lagged time for each infection time
+		lag_dict = {(node, time1, time2): int(ss.randint.ppf(diag_lag, 0,  len(contact_daylist[network][(node, time1, time2)]))) for (node, time1, time2), diag_lag in zip(sorted(contact_daylist[network]), diag_list)}
+		
+		## pick out corresponding date from contact_daylist
+		new_infection_time= {(node, time1, time2) : contact_daylist[network][(node, time1, time2)][lag_pos] for (node, time1, time2), lag_pos in lag_dict.items()}
+		new_recovery_time =  {(node, time1, time2): time2 for (node, time1, time2) in lag_dict}
+		
+		#########################################################
+		# imputing recovery date##
+		##########################################################	
+		if recovery_prob!=np.inf:
+			
+			max_recovery_date = {(node, time1, time2): recovery_daylist[(node, time1, time2)] for (node, time1, time2) in new_recovery_time}
+			
+			##uniform ppf is defined as (prob, lower_limit, upper_limit - lower_limit)
+			new_recovery_time = {(node, time1, time2): int(ss.uniform.ppf(p['gamma'][0], new_infection_time[(node, time1, time2)], max_recovery_date[(node, time1, time2)]-new_infection_time[(node, time1, time2)])) for (node, time1, time2) in new_recovery_time}
+			
+			## if the proposed recovery date coincides with a date when the indiv was reported sick then return invalid
+			if True in [val<= time2 for (node, time1, time2),val in new_recovery_time.items()]: return -np.inf		
+		##########################################################
+
+		for (node, time1, time2) in new_infection_time:
+			node_health_new[node][1].remove((time1, time2))
+			node_health_new[node][1].append((new_infection_time[(node, time1, time2)], new_recovery_time[(node, time1, time2)]))	
+			
+			health_data_new[node] = {day: 1 for day in range(new_infection_time[(node, time1, time2)], new_recovery_time[(node, time1, time2)]+1)}
+			
+		infected_strength={}
+		infected_strength[network] = {node:{time: calculate_infected_strength(node, time, health_data_new, G) for time in G.keys()} for node in nodelist}
+
+		healthy_nodelist = return_healthy_nodelist(node_health_new)
+
+		#create infection date list
+		infection_date = [(node, val) for (node, time1, time2),val in new_infection_time.items()]
+		infection_date = sorted(infection_date)	
+		
+	######################################################################
+	#print ("diagnosis lag done in"), time.time()-start1
 	######################################################################	
 
 	################################################################
@@ -398,8 +409,9 @@ def start_sampler(data, recovery_prob, priors, niter, min_burnin, max_burnin, ve
 	done = False
 	total_nburn = min_burnin
 	while not done:
+		startx = time.time()
 		for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = nburn)): 
-			if verbose:print("burnin progress and time"), (100 * float(i) / nburn), end-start
+			if verbose:print("burnin progress and time"), (100 * float(i) / nburn)
 			else: pass
 	
 		if last_ti is None:
@@ -424,7 +436,7 @@ def start_sampler(data, recovery_prob, priors, niter, min_burnin, max_burnin, ve
 			if total_nburn >= max_burnin:
 				print ("Exceeded maximum iterations. Convergence not acheived")
 				return sampler, False
-			
+		print ("burnin check"), total_nburn, time.time()-startx
 		cur_start_position = p
 		sampler.reset()
 

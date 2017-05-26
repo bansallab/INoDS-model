@@ -325,12 +325,14 @@ def return_potention_recovery_date(node_health, time_max,  G_raw):
 			if node_health[node].has_key(0):
 				##choose all uninfected time-periods after the focal sick period
 				healthy_dates = [(healthy_day1, healthy_day2) for healthy_day1, healthy_day2 in node_health[node][0] if healthy_day2 > time1]
+				
 				if len(healthy_dates)>0:
 					##choose the first report of uninfection
 					lower_limit, upper_limit = min(healthy_dates, key=lambda x:x[1])
 					recovery_date = lower_limit
+				else: recovery_date = time_max
 			else: recovery_date = time_max
-				
+		        
 			##recovery date can be any time-point between the last report of node "infection" state to the the first 
 			## report of uninfection afterwards (or time_max of the study)
 			recovery_daylist[(node, time1, time2)] = recovery_date

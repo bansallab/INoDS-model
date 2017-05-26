@@ -70,6 +70,7 @@ def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge
 def extract_nodelist(edge_filename):
 
 	df = pd.read_csv(edge_filename)
+	df.columns = df.columns.str.lower()
 	node1_list = list(df["node1"].unique())
 	node2_list = list(df["node2"].unique())
 	nodelist = list(set(node1_list + node2_list))

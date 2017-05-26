@@ -239,8 +239,8 @@ def gelman_rubin(chain_ensemble):
 
     #calculate the potential scale reduction factor
     Rhat = np.sqrt((d+3)*Vhat/((d+1)*W))
-    print ("checking Rhat"), Rhat
-    return all(num<1.1 for num in Rhat)
+
+    return Rhat, all(num<1.1 for num in Rhat)
 #################################################
 def check_convergence_corr(sampler,  pval_threshold=0.05):
     
@@ -287,14 +287,18 @@ def flatten_chain(sampler):
     return ct
 
 #######################################################################
-def summary(samples):
-    r"""Calculate mean and standard deviation of the sampler chains """
+def summary(sampler):
+    r"""Calculate mean and standard deviation of the sampler chains. Best parameter are chosed
+	based on the maximum log probability. """
   
-    mean = samples.mean(0)
-    mean = [round(num,5) for num in mean]
-    sigma = samples.std(0)
-    sigma = [round(num,5) for num in sigma]
-    return mean
+    #mean = samples.mean(0)
+    #mean = [round(num,5) for num in mean]
+    #sd = samples.std(0)
+    #sd = [round(num,5) for num in sd]
+  
+    best_lnprob = np.unravel_index(sampler.lnlikelihood[0,:,:].argmax(), sampler.lnlikelihood[0,:,:].shape)
+    best_pars = sampler.chain[0,best_lnprob[0],best_lnprob[1]]
+    return best_pars
 
 ##############################################################################
 def log_prior(parameters, priors, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data):
@@ -410,7 +414,6 @@ def start_sampler(data, recovery_prob, priors, niter, min_burnin, max_burnin, ve
 			
 			#check for convergence
 			if diff<abs_tol and curr_ti_err < abs_tol and last_ti_err < abs_tol and diff < (last_ti_err * rel_tol) and check_convergence_corr(sampler, pval_threshold=0.001): 
-				print "-- Converged!"
 				print ("total burnin steps = "), total_nburn
 				done = True
 			else:
@@ -433,7 +436,7 @@ def start_sampler(data, recovery_prob, priors, niter, min_burnin, max_burnin, ve
 	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(p, lnprob0 = lnprob,  lnlike0= lnlike, iterations= niter, thin= nthin)):  
 		if verbose:print("sampling progress"), (100 * float(i) / niter)
 		else: pass
-	print ("check2 sampler convergence"), check_convergence_corr(sampler, pval_threshold=0.001)
+	
 	#######################################
 	#checks for model evidence
 	#mean_logls = np.mean(sampler.lnlikelihood.reshape((ntemps, -1)), axis=1)
@@ -476,8 +479,8 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 
 	if summary_type =="parameter_estimate":
 		samples = flatten_chain(sampler)
-		parameter_estimate = summary(samples)
-		print ("parameter estimate of network hypothesis"), parameter_estimate
+		best_par = summary(sampler)
+		print ("parameter estimate of network hypothesis"), best_par
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
 			
 		if recovery_prob!=np.inf:
@@ -608,7 +611,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	if null_comparison:
 		if parameter_estimate:
 			samples = flatten_chain(sampler)
-			parameter_estimate = summary(samples)
+			parameter_estimate =  summary(sampler)
 		else:
 			parameter_estimate = truth
 		print ("generating null graphs.......")

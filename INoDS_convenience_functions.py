@@ -5,6 +5,21 @@ import scipy.stats as ss
 from random import shuffle
 import matplotlib.pyplot as plt
 import pandas as pd
+###########################################################################
+def can_nodes_recover(infection_type):
+	r"""INoDS can handle the following infection model types = SI, SIR, SIS.
+	recovery times imputed in SIR and SIS models
+	"""
+
+	infection_type = infection_type.upper()
+	if infection_type not in ["SI", "SIR", "SIS"]:
+		raise ValueError("INoDS works only for SI, SIR, SIS infection models. User-specified infection model is ill-defined")
+
+	if infection_type =="SI": recovery_prob=False
+	else: recovery_prob=True
+	
+	return recovery_prob
+
 #################################################################################
 def extract_maxtime(edge_filename, health_filename):
 	r""" Return min of maximum time across edge_filename and health_filename
@@ -52,10 +67,10 @@ def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge
 	if not edge_weights_to_binary and normalize_edge_weight:
 		## If the user asks for edge weight normalization, then calculate total edge weights
 		## at each time step
-		print ("before converting"), min(df['weight']), max(df['weight'])
-		min_edgewt = min(df['weight'])
-		df['weight'] = df["weight"]/min_edgewt
-		print ("min weight"), min_edgewt, min(df['weight']), max(df['weight'])
+		#print ("before converting"), min(df['weight']), max(df['weight'])
+		max_edgewt = max(df['weight'])/10.
+		df['weight'] = df["weight"]/max_edgewt
+		#print ("max weight"), max_edgewt, min(df['weight']), max(df['weight'])
 		
 
 	

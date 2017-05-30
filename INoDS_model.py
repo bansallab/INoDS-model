@@ -256,7 +256,6 @@ def gelman_rubin(chain_ensemble):
 #################################################
 def check_convergence_corr(sampler,  pval_threshold=0.05):
     
-    # Only do the check if we've got enough steps
     if sampler.lnprobability is None:
         print "sampler.lnprobability is None."
         return
@@ -270,11 +269,14 @@ def check_convergence_corr(sampler,  pval_threshold=0.05):
     pass_arr = np.zeros(ntemps)
     for temp_ix in range(0, ntemps):
         pts = lnpost[temp_ix].flatten(order='F')
+	## check if walkers have converged
         (rval, pval) = ss.pearsonr(step_indices, pts)
-        if rval < 0 or pval > pval_threshold:
+	
+	if rval < 0 or pval > pval_threshold:
             pass_arr[temp_ix] = True
     passes = np.all(pass_arr)
-    return np.all(pass_arr)
+   
+    return passes
 
 #####################################################################
 def log_evidence(sampler):
@@ -409,21 +411,23 @@ def start_sampler(data, recovery_prob, priors, niter, min_burnin, max_burnin, ve
 	last_ti = None
 	done = False
 	total_nburn = min_burnin
+	cur_position = starting_guess
 	while not done:
 		startx = time.time()
-		for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = nburn)): 
+		
+		for i, (p, lnprob, lnlike) in enumerate(sampler.sample(cur_position, iterations = nburn)): 
 			if verbose:print("burnin progress..."), (100 * float(i) / nburn)
 			else: pass
 	
 		if last_ti is None:
                 	(last_ti, last_ti_err) = log_evidence(sampler)
-			nburn=10
+			nburn=1
 			total_nburn+=nburn
 		else: 
 			(curr_ti, curr_ti_err) = log_evidence(sampler)
 			#compute difference in evidence
 			diff = np.abs(last_ti - curr_ti)
-			print last_ti , curr_ti ,  last_ti_err, curr_ti_err		
+			#print last_ti , curr_ti ,  last_ti_err, curr_ti_err		
 			#check for convergence
 			if diff<abs_tol and curr_ti_err < abs_tol and last_ti_err < abs_tol and diff < (last_ti_err * rel_tol) and check_convergence_corr(sampler, pval_threshold=0.001): 
 				print ("total burnin steps = "), total_nburn
@@ -431,14 +435,14 @@ def start_sampler(data, recovery_prob, priors, niter, min_burnin, max_burnin, ve
 			else:
 				last_ti = curr_ti
 				last_ti_err = curr_ti_err
-				nburn=10
+				nburn=1
 				total_nburn+=nburn
 
 			if total_nburn >= max_burnin:
-				print ("Exceeded maximum iterations. Convergence not acheived")
-				return sampler, False
-			print ("burnin check"), total_nburn, diff<abs_tol, curr_ti_err < abs_tol, last_ti_err < abs_tol , diff < (last_ti_err * rel_tol) ,check_convergence_corr(sampler, pval_threshold=0.001)
-		cur_start_position = p
+				print ("Warning. Exceeded maximum burnin iterations. Convergence not acheived")
+				break
+			#print ("burnin check"), total_nburn, diff<abs_tol, curr_ti_err < abs_tol, last_ti_err < abs_tol , diff < (last_ti_err * rel_tol) ,check_convergence_corr(sampler, pval_threshold=0.001)
+		cur_position = p
 		sampler.reset()
 
 	
@@ -544,20 +548,8 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		plt.savefig(output_filename + "_" + summary_type +"_posterior.png")
 		
 	
-
-#######################################################################
-def find_aggregate_timestep(health_data):
-	r"""Returns the timestep where all infection status are reported """
-
-	timelist = []
-	for node in health_data.keys():
-		for time in health_data[node].keys(): timelist.append(time)
-
-	if len(list(set(timelist)))!=1: print("Place error message here")
-	return list(set(timelist))[0]
-	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks, priors,  iteration, min_burnin=10, max_burnin=5000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks, priors,  iteration, min_burnin=50, max_burnin=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
 	r"""Main function for INoDS """
 	
 	###########################################################################

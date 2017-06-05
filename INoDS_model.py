@@ -4,7 +4,8 @@ import networkx as nx
 import csv
 import numpy as np
 from numpy import ma
-from emcee import PTSampler, autocorr
+from emcee import PTSampler
+from autocorr import get_autocorr_time
 import corner
 import copy
 import matplotlib.pyplot as plt
@@ -161,7 +162,7 @@ def calculate_infected_strength(node, time1, health_data_new, G):
 ################################################################################
 def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data):
 	r""" Converts a numpy array into a array with named fields"""
-	##PS: check if null comparison should just be specified once
+	
 	# Note gamma is estimated only when there is a diagnosis lag
 	if diagnosis_lag and recovery_prob: 
 		if null_comparison: 
@@ -253,30 +254,6 @@ def gelman_rubin(chain_ensemble):
     Rhat = np.sqrt((d+3)*Vhat/((d+1)*W))
 
     return Rhat, all(num<1.1 for num in Rhat)
-#################################################
-def check_convergence_corr(sampler,  pval_threshold=0.05):
-    
-    if sampler.lnprobability is None:
-        print "sampler.lnprobability is None."
-        return
-
-    lnpost = sampler.lnprobability[:, :, :]
-    ntemps = lnpost.shape[0]
-    nwalkers = lnpost.shape[1]
-    nsteps = lnpost.shape[2]
-
-    step_indices = np.repeat(np.arange(0, nsteps), nwalkers)
-    pass_arr = np.zeros(ntemps)
-    for temp_ix in range(0, ntemps):
-        pts = lnpost[temp_ix].flatten(order='F')
-	## check if walkers have converged
-        (rval, pval) = ss.pearsonr(step_indices, pts)
-	
-	if rval < 0 or pval > pval_threshold:
-            pass_arr[temp_ix] = True
-    passes = np.all(pass_arr)
-   
-    return passes
 
 #####################################################################
 def log_evidence(sampler):
@@ -312,6 +289,7 @@ def summary(sampler):
   
     best_lnprob = np.unravel_index(sampler.lnlikelihood[0,:,:].argmax(), sampler.lnlikelihood[0,:,:].shape)
     best_pars = sampler.chain[0,best_lnprob[0],best_lnprob[1]]
+    
     return best_pars
 
 ##############################################################################
@@ -331,9 +309,10 @@ def log_prior(parameters, priors, null_comparison, diagnosis_lag, nsick_param, r
 		if recovery_prob:
 			if (p['gamma'][0] < 0.000001).any() or (p['gamma'][0] > 1).any():return -np.inf 
 	
-    	return  ss.powerlaw.logpdf((1-p['alpha'][0]), 4)
+	return 0    	
+	#return  ss.powerlaw.logpdf((1-p['alpha'][0]), 4)
 #######################################################################
-def start_sampler(data, recovery_prob, priors, niter, min_burnin, max_burnin, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag=False, null_comparison=False, **kwargs3):
+def start_sampler(data, recovery_prob, priors, burnin, niter, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag=False, null_comparison=False, **kwargs3):
 	r"""Sampling performed using emcee """
 
 	null_comparison_data=None
@@ -401,51 +380,11 @@ def start_sampler(data, recovery_prob, priors, niter, min_burnin, max_burnin, ve
 	
 	#Run user-specified burnin
 	print ("burn in......")
-	abs_tol = 3.0 # The maximum allowed difference for convergence
-        rel_tol = 0.1 # The fraction of the error allowed for convergence
+	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = burnin)): 
+		if verbose:print("burnin progress..."), (100 * float(i) / nburn)
+		else: pass
 
-        # Run the sampler at incremental value of burnin period; at the end
-        # of each round, check for TI convergence. If there is no substantial improvement in TI, go on to main
-        # sampling. If not, reinitialize sampler and run again. 
-	nburn = min_burnin
-	last_ti = None
-	done = False
-	total_nburn = min_burnin
-	cur_position = starting_guess
-	while not done:
-		startx = time.time()
-		
-		for i, (p, lnprob, lnlike) in enumerate(sampler.sample(cur_position, iterations = nburn)): 
-			if verbose:print("burnin progress..."), (100 * float(i) / nburn)
-			else: pass
-	
-		if last_ti is None:
-                	(last_ti, last_ti_err) = log_evidence(sampler)
-			nburn=1
-			total_nburn+=nburn
-		else: 
-			(curr_ti, curr_ti_err) = log_evidence(sampler)
-			#compute difference in evidence
-			diff = np.abs(last_ti - curr_ti)
-			#print last_ti , curr_ti ,  last_ti_err, curr_ti_err		
-			#check for convergence
-			if diff<abs_tol and curr_ti_err < abs_tol and last_ti_err < abs_tol and diff < (last_ti_err * rel_tol) and check_convergence_corr(sampler, pval_threshold=0.001): 
-				print ("total burnin steps = "), total_nburn
-				done = True
-			else:
-				last_ti = curr_ti
-				last_ti_err = curr_ti_err
-				nburn=1
-				total_nburn+=nburn
-
-			if total_nburn >= max_burnin:
-				print ("Warning. Exceeded maximum burnin iterations. Convergence not acheived")
-				break
-			#print ("burnin check"), total_nburn, diff<abs_tol, curr_ti_err < abs_tol, last_ti_err < abs_tol , diff < (last_ti_err * rel_tol) ,check_convergence_corr(sampler, pval_threshold=0.001)
-		cur_position = p
-		sampler.reset()
-
-	
+	sampler.reset()
 	#################################
 	print ("sampling........")
 	nthin = 5
@@ -494,7 +433,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 	r""" Summarize the results of the sampler"""
 
 	if summary_type =="parameter_estimate":
-		samples = flatten_chain(sampler)
+	
 		best_par = summary(sampler)
 		print ("parameter estimate of network hypothesis"), best_par
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
@@ -549,7 +488,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks, priors,  iteration, min_burnin=50, max_burnin=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks, priors,  burnin =1000, iteration=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -603,7 +542,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		true_value = truth
 		data1 = [G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date]
 		print ("estimating model parameters.........................")
-		sampler, is_converged  = start_sampler(data1,  recovery_prob, priors,  iteration, min_burnin, max_burnin, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
+		sampler, is_converged  = start_sampler(data1,  recovery_prob, priors,  burnin, iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
 		summary_type = "parameter_estimate"
 		if is_converged: summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
 	#############################################################################
@@ -613,8 +552,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	########################################################################
 	##Step 2: Perform hypothesis testing by comparing HA against null networks
 	if null_comparison:
-		if parameter_estimate:
-			samples = flatten_chain(sampler)
+		if parameter_estimate:	
 			parameter_estimate =  summary(sampler)
 		else:
 			parameter_estimate = truth
@@ -626,7 +564,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_estimate]
 		print ("comparing network hypothesis with null..........................")
 		#reset sampler
-		sampler, is_converged = start_sampler(data1, recovery_prob, priors,  iteration, min_burnin, max_burnin,  verbose, contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag, null_comparison=True, null_networks=null_networks)
+		sampler, is_converged = start_sampler(data1, recovery_prob, priors, burnin,  iteration,  verbose, contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag, null_comparison=True, null_networks=null_networks)
 		summary_type = "null_comparison"
 		summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
 	##############################################################################

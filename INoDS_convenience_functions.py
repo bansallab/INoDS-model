@@ -68,7 +68,7 @@ def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge
 		## If the user asks for edge weight normalization, then calculate total edge weights
 		## at each time step
 		#print ("before converting"), min(df['weight']), max(df['weight'])
-		max_edgewt = max(df['weight'])/10.
+		max_edgewt = max(df['weight'])/1.
 		df['weight'] = df["weight"]/max_edgewt
 		#print ("max weight"), max_edgewt, min(df['weight']), max(df['weight'])
 		

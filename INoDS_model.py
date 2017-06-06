@@ -109,13 +109,12 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## (either reported or inferred) healthy                       #
 	################################################################
 	overall_not_learn = [not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['alpha'][0], infected_strength[network], seed_date, network_min_date) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist]	
-
+	
 	###########################################################
 	## Calculate overall log likelihood                       #
 	########################################################### 
 	loglike = sum(overall_learn) + sum(overall_not_learn)
-	#print p['beta'][0],  p['alpha'][0], sum(overall_learn) , sum(overall_not_learn), loglike
-	if loglike == -np.inf or np.isnan(loglike):return -np.inf
+	if loglike == -np.inf or np.isnan(loglike) or (len(overall_learn)==0 and len(overall_not_learn)==0):return -np.inf
 	else: return loglike
 
 #############################################################################
@@ -261,7 +260,6 @@ def log_evidence(sampler):
 
 	logls = sampler.lnlikelihood[:, :, :]
 	logls = ma.masked_array(logls, mask=logls == -np.inf)
-	
 	mean_logls = logls.mean(axis=-1).mean(axis=-1)
 	logZ = -np.trapz(mean_logls, sampler.betas)
 	logZ2 = -np.trapz(mean_logls[::2], sampler.betas[::2])
@@ -557,9 +555,14 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		else:
 			parameter_estimate = truth
 		print ("generating null graphs.......")
+		jaccard_list =[]
 		for num in xrange(null_networks): 
 			if verbose: print ("generating null network="), num
-			G_raw[num+1] = nf.randomize_network(G_raw[0])
+			G_raw[num+1], jaccard = nf.randomize_network(G_raw[0])
+			jaccard_list.append(jaccard)
+		if np.mean(jaccard_list)>0.4: 
+			print ("Warning!! Randomized network resembles empircal network. May lead to inconsistent evidence")
+		
 		true_value = truth
 		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_estimate]
 		print ("comparing network hypothesis with null..........................")

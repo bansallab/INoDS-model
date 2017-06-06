@@ -182,10 +182,8 @@ def randomize_network(G1):
 		
 
 	jaccard = calculate_mean_temporal_jaccard(G1, G2)
-	if jaccard > 0.4: print ("Warning!! Randomized network resembles empircal network. May lead to inconsistent evidence")
-	#print ("random graph check"), jaccard
-			
-	return G2 
+	
+	return G2, jaccard 
 #######################################################################		
 def stitch_health_data(health_data):
 	""" Fill in time steps with same infection status"""
@@ -387,6 +385,7 @@ def calculate_mean_temporal_jaccard(g1, g2):
 	for time1 in g1:
 		edges1 = [tuple(sorted(num)) for num in g1[time1].edges()]
 		edges2 = [tuple(sorted(num)) for num in g2[time1].edges()]
+
 		w11 = len(list(set(edges1) & set(edges2)))
 		w10 = len(list(set(edges1) - set(edges2)))
 		w01 =  len(list(set(edges2) - set(edges1)))

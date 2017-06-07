@@ -159,9 +159,11 @@ def randomize_network(G1):
 	
 	G2 = {}
 	for time in G1.keys():
+		print ("time, density"), time, nx.density(G1[time])
 		G2[time] = nx.Graph()
 		G2[time].add_nodes_from(G1[time].nodes())
 		wtlist = [G1[time][node1][node2]["weight"] for node1, node2 in G1[time].edges()]
+		print wtlist
 		shuffle(wtlist)
 		for num in xrange(len(G1[time].edges())): #for each edge in G1[time]
 			#select two random nodes from G2[time]

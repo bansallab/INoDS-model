@@ -114,7 +114,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## Calculate overall log likelihood                       #
 	########################################################### 
 	loglike = sum(overall_learn) + sum(overall_not_learn)
-	if loglike == -np.inf or np.isnan(loglike) or (len(overall_learn)==0 and len(overall_not_learn)==0):return -np.inf
+	if loglike == -np.inf or np.isnan(loglike) or (sum(overall_learn) + sum(overall_not_learn)==0):return -np.inf
 	else: return loglike
 
 #############################################################################

@@ -84,8 +84,6 @@ def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge
 		G[time1].add_edges_from(edge_list)
 		edge_attr = dict(zip(zip(df_sub.node1, df_sub.node2), df_sub.weight))
 		nx.set_edge_attributes(G[time1], 'weight', edge_attr)
-
-
 	
 	return G
 
@@ -157,14 +155,16 @@ def permute_network(G1, permutation):
 #################################################################
 def randomize_network(G1):
 	
+	r""" Randomize edge connections of each network slice.
+	Also, set edge weight to mean.
+	""" 
 	G2 = {}
 	for time in G1.keys():
-		print ("time, density"), time, nx.density(G1[time])
 		G2[time] = nx.Graph()
 		G2[time].add_nodes_from(G1[time].nodes())
 		wtlist = [G1[time][node1][node2]["weight"] for node1, node2 in G1[time].edges()]
-		print wtlist
-		shuffle(wtlist)
+		mean_wtlist = np.mean(wtlist)
+		#shuffle(wtlist)
 		for num in xrange(len(G1[time].edges())): #for each edge in G1[time]
 			#select two random nodes from G2[time]
 			condition_met = False # skip over node pairs that already have an edge
@@ -174,13 +174,13 @@ def randomize_network(G1):
 				if not (G2[time].has_edge(node1, node2) or G1[time].has_edge(node1, node2)): 
 					condition_met = True
 					G2[time].add_edge(node1, node2)
-					G2[time][node1][node2]["weight"] = wtlist.pop()
+					G2[time][node1][node2]["weight"] = mean_wtlist
 				else:counter+=1
 				if counter>1000:
 				##Give up after 1000 attempts
 					condition_met=True
 					G2[time].add_edge(node1, node2)
-					G2[time][node1][node2]["weight"] = wtlist.pop()
+					G2[time][node1][node2]["weight"] = mean_wtlist
 		
 
 	jaccard = calculate_mean_temporal_jaccard(G1, G2)
@@ -327,7 +327,7 @@ def return_contact_days_sick_nodes(node_health, seed_date, G_raw):
 	return contact_daylist
 
 #########################################################################
-def return_potention_recovery_date(node_health, time_max,  G_raw):
+def return_potention_recovery_date(node_health, time_max):
 	r""" For SIR/SIS model. Returns the potential time-points of recovery for each 
 	infected focal node"""
 	

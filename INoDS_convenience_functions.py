@@ -26,8 +26,10 @@ def extract_maxtime(edge_filename, health_filename):
 	"""
 	df = pd.read_csv(edge_filename)
 	df.columns = df.columns.str.lower()
+	df.columns = [x.strip().replace('_', '') for x in df.columns]
 	df2 = pd.read_csv(health_filename)
 	df2.columns = df2.columns.str.lower()
+	df2.columns = [x.strip().replace('_', '') for x in df2.columns]
 	return min(max(df['timestep']), max(df2['timestep']))
 
 #################################################################################
@@ -88,15 +90,12 @@ def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge
 	return G
 
 ##########################################################################
-def extract_nodelist(edge_filename):
+def extract_nodelist(H):
 
-	df = pd.read_csv(edge_filename)
-	df.columns = df.columns.str.lower()
-	node1_list = list(df["node1"].unique())
-	node2_list = list(df["node2"].unique())
-	nodelist = list(set(node1_list + node2_list))
-	##convert to string
-	nodelist = [str(node) for node in nodelist]
+	nodelist = [H[time].nodes() for time in H]
+	nodelist = [item for sublist in nodelist for item in sublist]
+	nodelist = list(set(nodelist))
+
 	return nodelist
 #######################################################################
 def check_edge_weights(G):
@@ -175,6 +174,7 @@ def randomize_network(G1):
 					condition_met = True
 					G2[time].add_edge(node1, node2)
 					G2[time][node1][node2]["weight"] = mean_wtlist
+					
 				else:counter+=1
 				if counter>1000:
 				##Give up after 1000 attempts
@@ -182,9 +182,9 @@ def randomize_network(G1):
 					G2[time].add_edge(node1, node2)
 					G2[time][node1][node2]["weight"] = mean_wtlist
 		
-
-	jaccard = calculate_mean_temporal_jaccard(G1, G2)
 	
+	jaccard = calculate_mean_temporal_jaccard(G1, G2)
+
 	return G2, jaccard 
 #######################################################################		
 def stitch_health_data(health_data):
@@ -456,14 +456,14 @@ def plot_beta_results(sampler, beta_truth, filename):
         plt.savefig(filename)
 
 ########################################################################
-def delete_edge_connections(g, percent_remove):
+def delete_edges(g, percent_remove):
 
 	edge_list = []
 	for time in g:	
 		for edge1 in g[time].edges(): edge_list.append((time, edge1))
 
 	total_edges = len(edge_list)
-	del_edges = int(percent_remove*total_edges)
+	del_edges = int((percent_remove*total_edges)/100.)
 	del_edges_per_time = int(del_edges/float(len(g)))
 	print total_edges, del_edges, del_edges_per_time, len(g)
 	G={}
@@ -479,6 +479,25 @@ def delete_edge_connections(g, percent_remove):
 	
 	print ("graph check for del edges"), calculate_mean_temporal_jaccard(g, G)
 	return G
-		
+########################################################################
+def delete_nodes(g, percent_remove):
+
+	edge_list = []
+	nodelist = [g[time].nodes() for time in g]
+	nodelist = [item for sublist in nodelist for item in sublist]
+	nodelist = list(set(nodelist))
+	total_nodes = len(nodelist)
+	del_nodes = int((percent_remove*total_nodes)/100.)
+	G={}
+	shuffle(nodelist)
+	mod_nodelist = nodelist[del_nodes:]
+	
+
+	for time in g:
+		G[time]=nx.Graph()
+		G[time] = g[time].subgraph(mod_nodelist)
+	
+	print ("graph check for del nodes"), calculate_mean_temporal_jaccard(g, G)
+	return G	
 	
 	

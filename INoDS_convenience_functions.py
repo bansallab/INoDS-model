@@ -201,7 +201,7 @@ def stitch_health_data(health_data):
 	
 	return health_data	
 #######################################################################
-def extract_health_data(health_filename, infection_type, nodelist, time_max, diagnosis_lag=False):
+def extract_health_data(health_filename, infection_type, nodelist, time_max, diagnosis_lag=False, missing_case_percentage=0):
 
 	r"""node_health is a dictionary of dictionary. Primary key = node id.
 	Secondary key = 0/1. 0 (1) key stores chunk of days when the node is **known** to be healthy (infected).
@@ -219,7 +219,7 @@ def extract_health_data(health_filename, infection_type, nodelist, time_max, dia
 			diagnosis = int(row[2])
 			if node in nodelist and timestep<=time_max:health_data[node][timestep] = diagnosis
 			
-
+	if missing_case_percentage: health_data = remove_cases(health_data, missing_case_percentage)
 	if diagnosis_lag: health_data = stitch_health_data(health_data)
 
 	node_health = {}
@@ -249,6 +249,20 @@ def extract_health_data(health_filename, infection_type, nodelist, time_max, dia
 			
 	
 	return health_data, node_health
+##############################################################################
+def remove_cases(health_data, missing_case_percentage):
+
+	infected_cases = [(node, timestep, diagnosis) for node in health_data for timestep, diagnosis in health_data[node].items() if diagnosis ==1]
+	shuffle(infected_cases)
+
+	to_remove = int((missing_case_percentage* len(infected_cases))/100.)
+	infected_cases = infected_cases[:to_remove]
+
+	
+	for node,timestep, diagnosis in infected_cases:
+		health_data[node].pop(timestep, None)
+
+	return health_data
 ##############################################################################
 def select_healthy_time(healthy_list_node, node, health_data, infection_type):
 
@@ -499,5 +513,5 @@ def delete_nodes(g, percent_remove):
 	
 	print ("graph check for del nodes"), calculate_mean_temporal_jaccard(g, G)
 	return G	
-	
-	
+########################################################################	
+

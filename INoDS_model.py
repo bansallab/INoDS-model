@@ -22,22 +22,95 @@ np.seterr(invalid='ignore')
 np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
+########################################################################
+def esimate_max_infected_strength(best_par, data, diagnosis_lag, recovery_prob, nsick_param):
+	r""" Returns man infected strength to evaluate the significance of 
+	beta value estimated
+	"""
+	
+	G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date  = data
+	health_data_new = copy.deepcopy(health_data)
+	node_health_new = copy.deepcopy(node_health)
+	p = to_params(best_par, False, diagnosis_lag, nsick_param, recovery_prob, None)
+	network=0 
+	G= G_raw[0]
+
+	network_min_date = min(G.keys())
+	
+	if diagnosis_lag:
+		infected_strength, healthy_nodelist, infection_date = diagnosis_adjustment(network, p,contact_daylist, recovery_prob, node_health_new, health_data_new)
+
+	else: 
+			
+		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
+		infection_date = sorted(infection_date)
+		infected_strength = {0:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[0]) for time in G_raw[0].keys()} for node in nodelist}}
+
+	overall_learn = [infected_strength[network][focal_node][sick_day-1] for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
+
+	return max(overall_learn)	
+
+#########################################################################
+def diagnosis_adjustment(G, network, p, nodelist,contact_daylist,  recovery_prob, max_recovery_time, node_health_new, health_data_new):
+
+
+	###ensure that the proposal do not include 0 and are <1 
+	diag_list = [min(max(num,0.000001),1) for num in p['diag_lag'][0]]
+	
+	##compute lagged time for each infection time
+	lag_dict = [(node, time1, time2, int(ss.randint.ppf(diag_lag, 0,  len(contact_daylist[network][(node, time1, time2)])))) for (node, time1, time2), diag_lag in zip(sorted(contact_daylist[network]), diag_list)]
+		
+	## pick out corresponding date from contact_daylist
+	new_infection_time= [(node, time1, time2, contact_daylist[network][(node, time1, time2)][lag_pos]) for (node, time1, time2, lag_pos) in lag_dict]
+	##order = node, old infection time, old recovery time, new infection time and new recovery time
+	new_infect_recovery_time =  [(node, time1, time2, new_time1, time2) for (node, time1, time2, new_time1) in new_infection_time]
+		
+	#########################################################
+	# imputing recovery date##
+	##########################################################	
+	if recovery_prob:
+	
+		###ensure that the proposal recovery times do not include 0 and are <1 
+		recovery_list = [min(max(num,0.000001),1) for num in p['gamma'][0]]
+			
+		## pick out corresponding recovery date (+1 to include period after time2  and time including max_recovery_time)
+		new_infect_recovery_time = [(node, time1, time2, new_time1, int(ss.randint.ppf(recovery_param, time2,  max_recovery_time[(node, time1, time2)]+1))) for (node, time1, time2, new_time1, new_time2), recovery_param in zip(sorted(new_infect_recovery_time), recovery_list)]	
+	##########################################################
+
+	for (node, time1, time2, new_time1, new_time2) in new_infect_recovery_time:
+		node_health_new[node][1].remove((time1, time2))
+		node_health_new[node][1].append((new_time1, new_time2))	
+		
+		health_data_new[node] = {day: 1 for day in range(new_time1, new_time2+1)}
+			
+	infected_strength={}
+	infected_strength[network] = {node:{time: calculate_infected_strength(node, time, health_data_new, G) for time in G.keys()} for node in nodelist}
+
+	healthy_nodelist = return_healthy_nodelist(node_health_new)
+
+	#create infection date list
+	infection_date = [(node, new_time1) for (node, time1, time2, new_time1, new_time2) in new_infect_recovery_time]
+	infection_date = sorted(infection_date)	
+	
+	return infected_strength, healthy_nodelist, infection_date
+
 #######################################################################
-def log_likelihood(parameters, data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, null_comparison_data):
+def log_likelihood(parameters, data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate):
 	r"""Computes the log-likelihood of network given infection data """
 	
 	if null_comparison:
 		G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date,parameter_estimate = data
 		health_data_new = copy.deepcopy(health_data)
 		node_health_new = copy.deepcopy(node_health)		
-		p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)
-		network = int(ss.randint.ppf(p['model'][0], 0,  len(G_raw)))
+		p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)
+		network = int(p['model'][0])
+		print ("choosing model"), network
 		G = G_raw[network]
 	else:
 		G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date  = data
 		health_data_new = copy.deepcopy(health_data)
 		node_health_new = copy.deepcopy(node_health)
-		p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)
+		p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)
 		network=0 
 		G= G_raw[0]
 
@@ -52,50 +125,8 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	##################################################################################################
 	
 	if diagnosis_lag:
+		infected_strength, healthy_nodelist, infection_date = diagnosis_adjustment(G, network, p, nodelist, contact_daylist, recovery_prob, max_recovery_time, node_health_new, health_data_new)
 		
-		###ensure that the proposal do not include 0 and are <1 
-		diag_list = [min(max(num,0.000001),1) for num in p['diag_lag'][0]]
-	
-		##compute lagged time for each infection time
-		lag_dict = [(node, time1, time2, int(ss.randint.ppf(diag_lag, 0,  len(contact_daylist[network][(node, time1, time2)])))) for (node, time1, time2), diag_lag in zip(sorted(contact_daylist[network]), diag_list)]
-		
-		## pick out corresponding date from contact_daylist
-		new_infection_time= [(node, time1, time2, contact_daylist[network][(node, time1, time2)][lag_pos]) for (node, time1, time2, lag_pos) in lag_dict]
-		##order = node, old infection time, old recovery time, new infection time and new recovery time
-		new_infect_recovery_time =  [(node, time1, time2, new_time1, time2) for (node, time1, time2, new_time1) in new_infection_time]
-		
-		start1 = time.time()
-		#########################################################
-		# imputing recovery date##
-		##########################################################	
-		if recovery_prob:
-	
-			###ensure that the proposal recovery times do not include 0 and are <1 
-			recovery_list = [min(max(num,0.000001),1) for num in p['gamma'][0]]
-			
-			## pick out corresponding recovery date (+1 to include period after time2  and time including max_recovery_time)
-			new_infect_recovery_time = [(node, time1, time2, new_time1, int(ss.randint.ppf(recovery_param, time2,  max_recovery_time[(node, time1, time2)]+1))) for (node, time1, time2, new_time1, new_time2), recovery_param in zip(sorted(new_infect_recovery_time), recovery_list)]
-		#print ("check time1"), time.time() - start1
-		#start2=time.time()	
-		##########################################################
-
-		for (node, time1, time2, new_time1, new_time2) in new_infect_recovery_time:
-			node_health_new[node][1].remove((time1, time2))
-			node_health_new[node][1].append((new_time1, new_time2))	
-			
-			health_data_new[node] = {day: 1 for day in range(new_time1, new_time2+1)}
-			
-		infected_strength={}
-		infected_strength[network] = {node:{time: calculate_infected_strength(node, time, health_data_new, G) for time in G.keys()} for node in nodelist}
-
-		healthy_nodelist = return_healthy_nodelist(node_health_new)
-
-		#create infection date list
-		infection_date = [(node, new_time1) for (node, time1, time2, new_time1, new_time2) in new_infect_recovery_time]
-		infection_date = sorted(infection_date)	
-		#print ("check time2"), time.time() - start2
-	######################################################################
-	#print ("diagnosis lag done in"), time.time()-start1
 	######################################################################	
 
 	################################################################
@@ -160,13 +191,13 @@ def calculate_infected_strength(node, time1, health_data_new, G):
 	return sum(strength)
 
 ################################################################################
-def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data):
+def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate):
 	r""" Converts a numpy array into a array with named fields"""
 	
 	# Note gamma is estimated only when there is a diagnosis lag
 	if diagnosis_lag and recovery_prob: 
 		if null_comparison: 
-			arr2 = np.array(list(null_comparison_data) + list(arr))
+			arr2 = np.array(list(parameter_estimate) + list(arr))
 			return arr2.view(np.dtype([('beta', np.float),
 			('alpha', np.float),
 			('gamma', np.float, nsick_param),
@@ -180,7 +211,7 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, n
 
 	elif diagnosis_lag:
 		if null_comparison: 
-			arr2 = np.array(list(null_comparison_data) + list(arr))
+			arr2 = np.array(list(parameter_estimate) + list(arr))
 			return arr2.view(np.dtype([('beta', np.float),
 			('alpha', np.float),
 			('diag_lag', np.float, nsick_param),
@@ -192,7 +223,8 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, n
 	
 
 	if null_comparison: 
-			arr2 = np.array(list(null_comparison_data) + list(arr))
+			
+			arr2 = np.array(list(parameter_estimate) + list(arr))
 			return arr2.view(np.dtype([('beta', np.float), 
 			('alpha', np.float),
 			('model', np.float)]))
@@ -293,9 +325,9 @@ def summary(sampler):
     return best_pars
 
 ##############################################################################
-def log_prior(parameters,  null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data):
+def log_prior(parameters,  null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate):
     
-    p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)
+    p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)
     if null_comparison:
 	if p['model'][0] < 0.000001  or  p['model'][0] >  1: return -np.inf 
 	return 0
@@ -316,18 +348,12 @@ def log_prior(parameters,  null_comparison, diagnosis_lag, nsick_param, recovery
 def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag=False, null_comparison=False, **kwargs3):
 	r"""Sampling performed using emcee """
 
-	null_comparison_data=None
+	parameter_estimate=None
 	##############################################################################
 	if null_comparison: 
 		G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date,parameter_estimate = data
-		ndim = 1 
-		betas = np.linspace(0, -0.04, 10)
-		betas = 10**(np.sort(betas)[::-1])
-		ntemps = 10
-		nwalkers = max(10, 2*ndim) # number of MCMC walkers
-		starting_guess = np.zeros((ntemps, nwalkers, ndim))
-		starting_guess[:, :, 0] = np.random.uniform(low = 0.0001, high =1, size=(ntemps, nwalkers))
-		null_comparison_data = parameter_estimate
+		parameter_estimate = parameter_estimate
+
 		
 		
 	else: 
@@ -375,61 +401,48 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	else: 
 		infection_date = None
 		infected_strength=None	
-		threads = 4
+		threads = 6
 		
 
 	healthy_nodelist = return_healthy_nodelist(node_health)	
 	##############################################################################
-	if null_comparison:threads=1
-	if threads>1:
-		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, null_comparison_data), logpargs=(null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data), threads=threads) 
-	else:
-		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, null_comparison_data), logpargs=(null_comparison, diagnosis_lag, nsick_param, recovery_prob, null_comparison_data)) 
-	
-	#Run user-specified burnin
-	print ("burn in......")
-	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = burnin)): 
-		if verbose:print("burnin progress..."), (100 * float(i) / burnin)
-		else: pass
-
-	sampler.reset()
-	#################################
-	print ("sampling........")
-	nthin = 5
-	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(p, lnprob0 = lnprob,  lnlike0= lnlike, iterations= niter, thin= nthin)):  
-		if verbose:print("sampling progress"), (100 * float(i) / niter)
-		else: pass
-	
-	#######################################
-	#checks for model evidence
-	#mean_logls = np.mean(sampler.lnlikelihood.reshape((ntemps, -1)), axis=1)
-	#betas = sampler.betas
-	#betas = [np.log(beta) for beta in betas]
-	#plt.plot(betas, mean_logls, "-o") 
- 	#plt.xlabel(r'$\beta$')
-	#plt.ylabel(r'$\beta \left\langle \ln L \right\rangle_\beta$')
- 	#plt.title('Thermodynamic Integration Integrand')
-	#plt.savefig("plot.png")
-	
-	#logls = sampler.lnlikelihood
-	#logls = logls[:, :, 0:]  # Drop the burn-in steps 
-
-	#mean_logls2 = np.mean(np.mean(logls, axis=1)[:, 0:], axis=1)
-	#lnZ_RRS = -np.dot(mean_logls2, np.diff(np.concatenate((betas, np.array([0])))))
-
-	
-	#logls_ave = np.mean(logls, axis=1)  # Average over the steps 
-	#logls_ave = np.mean(logls_ave, axis=1) # Average over the walkers
-	#lnZ_trap = -np.trapz(logls_ave, betas)
-	#print ("RRS lnZ = "),lnZ_RRS
-	#print ("trap lnZ="), lnZ_trap
-	#########################################################
+	if null_comparison:
+		logl_list = []
+		for network in G_raw:
+			logl = log_likelihood(np.array([network]), data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate)
+			logl_list.append(logl)
 		
-	##############################
-	#The resulting samples are stored as the sampler.chain property:
-	assert sampler.chain.shape == (ntemps, nwalkers, niter/nthin, ndim)
+		return logl_list
+	################################################################################
+	else:
+		if threads>1:
+			
+			sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate), logpargs=(null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate), threads=threads) 
+	
+		if threads<=1:
+			sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate), logpargs=(null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)) 
+	
+		#Run user-specified burnin
+		print ("burn in......")
+		for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = burnin)): 
+			if verbose:print("burnin progress..."), (100 * float(i) / burnin)
+			else: pass
 
-	return sampler
+		sampler.reset()
+		#################################
+		print ("sampling........")
+		nthin = 5
+		for i, (p, lnprob, lnlike) in enumerate(sampler.sample(p, lnprob0 = lnprob,  lnlike0= lnlike, iterations= niter, thin= nthin)):  
+			if verbose:print("sampling progress"), (100 * float(i) / niter)
+			else: pass
+	
+	
+		
+		##############################
+		#The resulting samples are stored as the sampler.chain property:
+		assert sampler.chain.shape == (ntemps, nwalkers, niter/nthin, ndim)
+
+		return sampler
 ##############################################3
 def getstate(sampler):
         self_dict = sampler.__dict__.copy()
@@ -437,7 +450,7 @@ def getstate(sampler):
 	return self_dict
 
 ##############################################################################################
-def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob):
+def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type):
 	r""" Summarize the results of the sampler"""
 
 	if summary_type =="parameter_estimate":
@@ -457,20 +470,18 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		print ("Transformed evidence and error"), evidence, error
 
 		autocor_checks(sampler)
-     
-	
+ 
 	
 	#################################
 	if summary_type =="null_comparison":
+		best_par = None
 		N_networks = len(G_raw)
-		sampler1 = sampler.flatchain[0, :, 0]
-		bins = [0]+[ss.randint.cdf(num, 0, N_networks) for num in xrange(N_networks)]
-		hist = np.histogram(sampler1, bins)[0]
-		df = pd.DataFrame(hist)
+		sampler_null = sampler[1:]
+		df = pd.DataFrame(sampler)
 		file_name = output_filename + "_" + summary_type +  ".csv"
 		df.to_csv(file_name)
-		ha = hist[0]
-		nulls = hist[1:]
+		ha = sampler[0]
+		nulls = sampler[1:]
 		ext_val = [int(num>=ha) for num in nulls]
 		print ("p-value of network hypothesis"), sum(ext_val)/(1.*len(ext_val))
 		ind = [num for num in xrange(N_networks)]
@@ -484,14 +495,15 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		plt.gca().get_xaxis().tick_bottom()    
 		plt.gca().get_yaxis().tick_left()   
 		##############################
-		plt.hist(hist[1:], bins=10, normed=True, color="#969696")
-		plt.axvline(x=hist[0], ymin=0, ymax=max(hist), linewidth=2, color='#e41a1c', label ="Network hypothesis")
-		plt.xlabel("Predictive power", **axis_font)
+		hist = np.histogram(sampler, 10)[0]
+		plt.hist(sampler[1:], bins=10, normed=False, color="#969696")
+		plt.axvline(x=sampler[0], ymin=0, ymax=max(hist), linewidth=2, color='#e41a1c', label ="Network hypothesis")
+		plt.xlabel("Log-likelihood", **axis_font)
 		plt.ylabel("Frequency", **axis_font)
 		plt.legend()
 		plt.legend(frameon=False)
 		plt.savefig(output_filename + "_" + summary_type +"_posterior.png")
-		
+	return best_par	
 	
 ######################################################################33
 def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks,  burnin =1000, iteration=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, remove_nodes=False, remove_edges=False, remove_cases=False):
@@ -543,7 +555,9 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		print ("estimating model parameters.........................")
 		sampler = start_sampler(data1,  recovery_prob,  burnin, iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
 		summary_type = "parameter_estimate"
-		summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
+		best_par = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
+		max_infected_strength = esimate_max_infected_strength(best_par, data1, diagnosis_lag, recovery_prob, nsick_param)
+		print ("max infected strength="), max_infected_strength
 	#############################################################################
 	if not parameter_estimate and sum(truth)==0:
 		raise ValueError("Parameter estimate is set to False and no truth is supplied!")
@@ -576,10 +590,13 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 
 		if recovery_prob: max_recovery_time = nf.return_potention_recovery_date(node_health, time_max)	
 		print ("comparing network hypothesis with null..........................")
-		#reset sampler
-		sampler = start_sampler(data1, recovery_prob, burnin,  iteration,  verbose, contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag, null_comparison=True, null_networks=null_networks)
+
+
+	
+		logl_list = start_sampler(data1, recovery_prob, burnin,  iteration,  verbose, contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag, null_comparison=True, null_networks=null_networks)
+		print ("logl list"), logl_list
 		summary_type = "null_comparison"
-		summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, recovery_prob)
+		summarize_sampler(logl_list, G_raw, true_value, output_filename, summary_type)
 	##############################################################################
 
 

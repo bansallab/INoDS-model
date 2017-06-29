@@ -5,7 +5,6 @@ import csv
 import numpy as np
 from numpy import ma
 from emcee import PTSampler
-from autocorr import get_autocorr_time
 import corner
 import copy
 import matplotlib.pyplot as plt
@@ -23,7 +22,7 @@ np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 ########################################################################
-def esimate_max_infected_strength(best_par, data, diagnosis_lag, recovery_prob, nsick_param):
+def esimate_max_infected_strength(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param):
 	r""" Returns man infected strength to evaluate the significance of 
 	beta value estimated
 	"""
@@ -48,7 +47,8 @@ def esimate_max_infected_strength(best_par, data, diagnosis_lag, recovery_prob, 
 
 	overall_learn = [infected_strength[network][focal_node][sick_day-1] for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
 
-	return max(overall_learn)	
+	if len(overall_learn)>0: return max(overall_learn)
+	else: return 0	
 
 #########################################################################
 def diagnosis_adjustment(G, network, p, nodelist,contact_daylist,  recovery_prob, max_recovery_time, node_health_new, health_data_new):
@@ -104,7 +104,6 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 		node_health_new = copy.deepcopy(node_health)		
 		p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)
 		network = int(p['model'][0])
-		print ("choosing model"), network
 		G = G_raw[network]
 	else:
 		G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date  = data
@@ -223,7 +222,6 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, p
 	
 
 	if null_comparison: 
-			
 			arr2 = np.array(list(parameter_estimate) + list(arr))
 			return arr2.view(np.dtype([('beta', np.float), 
 			('alpha', np.float),
@@ -457,7 +455,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	
 		best_par = summary(sampler)
 		print ("parameter estimate of network hypothesis"), best_par
-		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
+		
 			
 		fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
 			
@@ -468,8 +466,8 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 		error = evidence*logzerr
 		print ("Log Bayes evidence and error"), logz, logzerr
 		print ("Transformed evidence and error"), evidence, error
-
 		autocor_checks(sampler)
+		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
  
 	
 	#################################
@@ -556,7 +554,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		sampler = start_sampler(data1,  recovery_prob,  burnin, iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
 		summary_type = "parameter_estimate"
 		best_par = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
-		max_infected_strength = esimate_max_infected_strength(best_par, data1, diagnosis_lag, recovery_prob, nsick_param)
+		max_infected_strength = esimate_max_infected_strength(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param)
 		print ("max infected strength="), max_infected_strength
 	#############################################################################
 	if not parameter_estimate and sum(truth)==0:
@@ -594,7 +592,6 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 
 	
 		logl_list = start_sampler(data1, recovery_prob, burnin,  iteration,  verbose, contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag, null_comparison=True, null_networks=null_networks)
-		print ("logl list"), logl_list
 		summary_type = "null_comparison"
 		summarize_sampler(logl_list, G_raw, true_value, output_filename, summary_type)
 	##############################################################################

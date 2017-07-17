@@ -12,7 +12,6 @@ import random as rnd
 from multiprocess import Pool
 import INoDS_convenience_functions as nf
 import warnings
-from scipy import signal
 import scipy.stats as ss
 import cPickle
 import time
@@ -22,9 +21,9 @@ np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 ########################################################################
-def esimate_max_infected_strength(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param):
-	r""" Returns man infected strength to evaluate the significance of 
-	beta value estimated
+def estimate_max_infected_strength(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param):
+	r""" Returns man infected strength. Maximum infected strength should be more
+	than zero for the contact network to have any epidemiological significance 
 	"""
 	
 	G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date  = data
@@ -45,11 +44,28 @@ def esimate_max_infected_strength(best_par, data, contact_daylist, diagnosis_lag
 		infection_date = sorted(infection_date)
 		infected_strength = {0:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[0]) for time in G_raw[0].keys()} for node in nodelist}}
 
-	overall_learn = [infected_strength[network][focal_node][sick_day-1] for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
+	beta_learn = [p["beta"][0]*infected_strength[network][focal_node][sick_day-1] for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
 
-	if len(overall_learn)>0: return max(overall_learn)
-	else: return 0	
+	alpha_learn = [p["alpha"][0] for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
 
+	pval_list = [a > b for (b,a) in zip(beta_learn, alpha_learn)]
+	
+	return sum(pval_list)/(1.*len(pval_list))
+
+########################################################################
+def estimate_null_alpha(alpha,node_health,seed_date):
+	r""" Null alpha is calculated when beta is set to zero. i.e. contact network is removed from
+	the likelihood estimation
+	"""
+
+	healthy_nodelist = return_healthy_nodelist(node_health)
+	infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
+	overall_learn = [np.log(np.exp(-alpha)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
+
+	overall_not_learn = [np.log(1-(np.exp(-alpha))) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist for date in [date1 for date1 in range(healthy_day1, healthy_day2+1) if date1!=seed_date]]
+
+	return -sum(overall_learn + overall_not_learn)
+	
 #########################################################################
 def diagnosis_adjustment(G, network, p, nodelist,contact_daylist,  recovery_prob, max_recovery_time, node_health_new, health_data_new):
 
@@ -554,8 +570,10 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		sampler = start_sampler(data1,  recovery_prob,  burnin, iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
 		summary_type = "parameter_estimate"
 		best_par = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
-		max_infected_strength = esimate_max_infected_strength(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param)
-		print ("max infected strength="), max_infected_strength
+		max_infected_strength = estimate_max_infected_strength(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param)
+		print ("pvalue of beta = "), max_infected_strength
+		
+		
 	#############################################################################
 	if not parameter_estimate and sum(truth)==0:
 		raise ValueError("Parameter estimate is set to False and no truth is supplied!")

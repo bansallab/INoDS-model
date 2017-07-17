@@ -21,7 +21,7 @@ np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 ########################################################################
-def estimate_max_infected_strength(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param):
+def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param):
 	r""" Returns man infected strength. Maximum infected strength should be more
 	than zero for the contact network to have any epidemiological significance 
 	"""
@@ -570,8 +570,8 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		sampler = start_sampler(data1,  recovery_prob,  burnin, iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
 		summary_type = "parameter_estimate"
 		best_par = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
-		max_infected_strength = estimate_max_infected_strength(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param)
-		print ("pvalue of beta = "), max_infected_strength
+		beta_significant = estimate_beta_significance(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param)
+		print ("pvalue of beta = "), beta_significant
 		
 		
 	#############################################################################

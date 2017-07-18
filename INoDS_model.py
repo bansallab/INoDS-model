@@ -21,7 +21,7 @@ np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 ########################################################################
-def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param):
+def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time):
 	r""" Returns man infected strength. Maximum infected strength should be more
 	than zero for the contact network to have any epidemiological significance 
 	"""
@@ -36,7 +36,7 @@ def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, r
 	network_min_date = min(G.keys())
 	
 	if diagnosis_lag:
-		infected_strength, healthy_nodelist, infection_date = diagnosis_adjustment(network, p,contact_daylist, recovery_prob, node_health_new, health_data_new)
+		infected_strength, healthy_nodelist, infection_date = diagnosis_adjustment(G, network, p,nodelist, contact_daylist, recovery_prob,max_recovery_time, node_health_new, health_data_new)
 
 	else: 
 			
@@ -570,7 +570,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		sampler = start_sampler(data1,  recovery_prob,  burnin, iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
 		summary_type = "parameter_estimate"
 		best_par = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
-		beta_significant = estimate_beta_significance(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param)
+		beta_significant = estimate_beta_significance(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time)
 		print ("pvalue of beta = "), beta_significant
 		
 		

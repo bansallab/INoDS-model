@@ -52,20 +52,7 @@ def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, r
 	
 	return sum(pval_list)/(1.*len(pval_list))
 
-########################################################################
-def estimate_null_alpha(alpha,node_health,seed_date):
-	r""" Null alpha is calculated when beta is set to zero. i.e. contact network is removed from
-	the likelihood estimation
-	"""
 
-	healthy_nodelist = return_healthy_nodelist(node_health)
-	infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
-	overall_learn = [np.log(np.exp(-alpha)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
-
-	overall_not_learn = [np.log(1-(np.exp(-alpha))) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist for date in [date1 for date1 in range(healthy_day1, healthy_day2+1) if date1!=seed_date]]
-
-	return -sum(overall_learn + overall_not_learn)
-	
 #########################################################################
 def diagnosis_adjustment(G, network, p, nodelist,contact_daylist,  recovery_prob, max_recovery_time, node_health_new, health_data_new):
 
@@ -520,7 +507,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	return best_par	
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks,  burnin =1000, iteration=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, remove_nodes=False, remove_edges=False, remove_cases=False):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks,  burnin =1000, iteration=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, test_beta_significance =True, remove_nodes=False, remove_edges=False, remove_cases=False):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -570,6 +557,21 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		sampler = start_sampler(data1,  recovery_prob,  burnin, iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
 		summary_type = "parameter_estimate"
 		best_par = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
+	
+	##########################################################################
+	if test_beta_significance:	
+
+		if not parameter_estimate: best_par = np.array(truth)
+
+		if diagnosis_lag:
+			#Format: contact_daylist[network_type][(node, time1, time2)] =       
+			## potential time-points when the node could have contract infection 
+			contact_daylist = nf.return_contact_days_sick_nodes(node_health, seed_date, G_raw)
+			nsick_param = len(contact_daylist[0])
+		
+		if recovery_prob: max_recovery_time = nf.return_potention_recovery_date(node_health, time_max)	
+
+		data1 = [G_raw, health_data, node_health, nodelist, truth,  time_min, time_max, seed_date]
 		beta_significant = estimate_beta_significance(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time)
 		print ("pvalue of beta = "), beta_significant
 		

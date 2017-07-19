@@ -161,6 +161,7 @@ def randomize_network(G1):
 	for time in G1.keys():
 		G2[time] = nx.Graph()
 		G2[time].add_nodes_from(G1[time].nodes())
+		edge_size = len(G1[time].edges())
 		wtlist = [G1[time][node1][node2]["weight"] for node1, node2 in G1[time].edges()]
 		mean_wtlist = np.mean(wtlist)
 		#shuffle(wtlist)
@@ -176,8 +177,8 @@ def randomize_network(G1):
 					G2[time][node1][node2]["weight"] = mean_wtlist
 					
 				else:counter+=1
-				if counter>1000:
-				##Give up after 1000 attempts
+				if counter > 2* edge_size and not (G2[time].has_edge(node1, node2)):
+				##Give up after 2*#edges attempts
 					condition_met=True
 					G2[time].add_edge(node1, node2)
 					G2[time][node1][node2]["weight"] = mean_wtlist

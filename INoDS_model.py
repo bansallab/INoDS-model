@@ -39,7 +39,7 @@ def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, r
 		infected_strength, healthy_nodelist, infection_date = diagnosis_adjustment(G, network, p,nodelist, contact_daylist, recovery_prob,max_recovery_time, node_health_new, health_data_new)
 
 	else: 
-			
+		healthy_nodelist = return_healthy_nodelist(node_health)	
 		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
 		infection_date = sorted(infection_date)
 		infected_strength = {0:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[0]) for time in G_raw[0].keys()} for node in nodelist}}

@@ -5,6 +5,7 @@ import scipy.stats as ss
 from random import shuffle
 import matplotlib.pyplot as plt
 import pandas as pd
+from itertools import combinations
 ###########################################################################
 def can_nodes_recover(infection_type):
 	r"""INoDS can handle the following infection model types = SI, SIR, SIS.
@@ -25,12 +26,15 @@ def extract_maxtime(edge_filename, health_filename):
 	r""" Return min of maximum time across edge_filename and health_filename
 	"""
 	df = pd.read_csv(edge_filename)
+	
 	df.columns = df.columns.str.lower()
 	df.columns = [x.strip().replace('_', '') for x in df.columns]
 	df2 = pd.read_csv(health_filename)
 	df2.columns = df2.columns.str.lower()
 	df2.columns = [x.strip().replace('_', '') for x in df2.columns]
-	return min(max(df['timestep']), max(df2['timestep']))
+	header= list(df)
+	if "timestep" not in header:return max(df2['timestep'])
+	else: return min(max(df['timestep']), max(df2['timestep']))
 
 #################################################################################
 def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max):
@@ -165,6 +169,7 @@ def randomize_network(G1):
 		wtlist = [G1[time][node1][node2]["weight"] for node1, node2 in G1[time].edges()]
 		mean_wtlist = np.mean(wtlist)
 		#shuffle(wtlist)
+
 		for num in xrange(len(G1[time].edges())): #for each edge in G1[time]
 			#select two random nodes from G2[time]
 			condition_met = False # skip over node pairs that already have an edge
@@ -183,7 +188,7 @@ def randomize_network(G1):
 					G2[time].add_edge(node1, node2)
 					G2[time][node1][node2]["weight"] = mean_wtlist
 		
-	
+		
 	jaccard = calculate_mean_temporal_jaccard(G1, G2)
 
 	return G2, jaccard 
@@ -337,8 +342,12 @@ def return_contact_days_sick_nodes(node_health, seed_date, G_raw):
 		
 			for network in G_raw:
 				#choose only those days where nodes has contact the previous day
-				contact_daylist[network][(node, time1, time2)] =[day for day in range(day_start+1, time1+1) if G_raw[network][day-1].degree(node)>0]
+				contact_daylist[network][(node, time1, time2)] =[day for day in range(day_start+1, time1+1) if node in G_raw[network][day-1].nodes() and G_raw[network][day-1].degree(node)>0]
+				##if there are no contacts then return the entire list
+				if len(contact_daylist[network][(node, time1, time2)])==0: 
+					contact_daylist[network][(node, time1, time2)] = [day for day in range(day_start+1, time1+1)]
 
+				
 	return contact_daylist
 
 #########################################################################

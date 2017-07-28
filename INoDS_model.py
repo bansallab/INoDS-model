@@ -49,7 +49,6 @@ def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, r
 	alpha_learn = [p["alpha"][0] for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
 
 	pval_list = [a > b for (b,a) in zip(beta_learn, alpha_learn)]
-	
 	return sum(pval_list)/(1.*len(pval_list))
 
 

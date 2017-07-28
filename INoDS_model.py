@@ -187,7 +187,8 @@ def calculate_infected_strength(node, time1, health_data_new, G):
 	
 	## infected strength is sum of all edge weights of focal nodes connecting to infected nodes
 	## NOTE: health_data_new[node_i].get(time1) checks if time1 is present in health_data[node_i] AND if the value is 1
-	if node in G[time1].nodes(): strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if health_data_new[node_i].get(time1)]
+		
+	if time1 in G and node in G[time1].nodes(): strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if health_data_new[node_i].get(time1)]
 	else: strength=[]
 	return sum(strength)
 
@@ -393,7 +394,7 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	if not diagnosis_lag:		
 		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
 		infection_date = sorted(infection_date)
-		infected_strength = {network:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[network]) for time in G_raw[network].keys()} for node in nodelist} for network in G_raw}
+		infected_strength = {network:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[network]) for time in range(time_min, time_max+1)} for node in nodelist} for network in G_raw}
 		pool = None
 		threads = 1
 		

@@ -5,6 +5,7 @@ import csv
 import numpy as np
 from numpy import ma
 from emcee import PTSampler
+from emcee import autocorr
 import corner
 import copy
 import matplotlib.pyplot as plt
@@ -21,7 +22,7 @@ np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 ########################################################################
-def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time):
+def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time,time_min, time_max):
 	r""" Returns man infected strength. Maximum infected strength should be more
 	than zero for the contact network to have any epidemiological significance 
 	"""
@@ -42,7 +43,7 @@ def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, r
 		healthy_nodelist = return_healthy_nodelist(node_health)	
 		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
 		infection_date = sorted(infection_date)
-		infected_strength = {0:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[0]) for time in G_raw[0].keys()} for node in nodelist}}
+		infected_strength = {0:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[0]) for time in range(time_min, time_max+1)} for node in nodelist}}
 
 	beta_learn = [p["beta"][0]*infected_strength[network][focal_node][sick_day-1] for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
 
@@ -235,59 +236,20 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, p
 	
 
 #####################################################################
-def autocor_checks(sampler, itemp=0, outfile=None):
+def autocor_checks(sampler, output_filename):
 	r""" Perform autocorrelation checks"""
 
-	## sampler shape is (ntemp, nwalkers, niter, dim). Chain containing samples is niter*nwalkers
-	#a_exp = sampler.acor[0]
-	#a_exp = max(a_exp)
-	#print('Additional burn-in required'), int(10 * a_exp)
-	
-	print('Chains contain samples after thinning (across all walkers)='), sampler.chain.shape[-2]*sampler.chain.shape[1]
-	#a_int = np.max([autocorr.integrated_time(sampler.chain[itemp, i, :], c=5) for i in range(sampler.chain.shape[1])], 0)
-	#a_int = max(a_int)
-	#print('Each chain produces one independent sample per steps ='), int(a_int)
-	print ('Gelman-Rubin covergence test passed?'), gelman_rubin(sampler.chain[0,:,:,:])
-	
+	print('Chains contain samples after thinning (= 5) across all walkers ='), sampler.chain.shape[-2]*sampler.chain.shape[1]
+	f = [autocorr.function(sampler.chain[0, i, :])  for i in range(3)]
 
-##############################################################
-def gelman_rubin(chain_ensemble):
-    """
-    returns: Gelman-Rubin scale reduction factor for set of chains
-    Parameters:
-    chain_ensemble: the ensemble of chains to use; this paramater expects that the first nsteps/2 of each chain have already been discarded;
-    chain_ensemble should be an array of the format nchains x nsteps x ndim
-    code adapted from function https://github.com/catherinezucker/dustcurve/blob/7b018b47fd782878a2778b44756e32eafeae235f/dustcurve/diagnostics.py available under GNU open source license
-    """
-
-    nruns,nsteps,ndim=chain_ensemble.shape
-
-    #calculate the mean of each chain
-    mean=np.mean(chain_ensemble,axis=1)
-
-    #calculate the variance of each chain
-    var=np.var(chain_ensemble,axis=1, ddof=1)
-
-    #calculate the mean of the variances of each chain
-    # W is the average within-chain variance
-    W=np.mean(var, axis=0)
-
-    #calculate the variance of the chain means multiplied by n
-    # B is between chain variance
-    B=nsteps*np.var(mean, axis=0, ddof=1)
-    #calculate estimated variance:
-    sigmasq=(1-1/nsteps) * W + (1/nsteps)*B
-
-    #sampling variability
-    Vhat=sigmasq+B/(nruns*nsteps)
-
-    #degree of freedo
-    d = 2*Vhat**2/np.var(Vhat)
-
-    #calculate the potential scale reduction factor
-    Rhat = np.sqrt((d+3)*Vhat/((d+1)*W))
-
-    return Rhat, all(num<1.1 for num in Rhat)
+        ax = plt.figure().add_subplot(111)
+	for i in range(3):
+            ax.plot(f[i], "k")
+	    ax.axhline(0, color="k")
+	    ax.set_xlabel(r"Steps (after thinning)")
+	    ax.set_title(r"Autocorrelation of three walkers")
+	    ax.set_ylabel(r"Autocorrelation")
+	    plt.savefig(output_filename+'_autocorrelation.png')
 
 #####################################################################
 def log_evidence(sampler):
@@ -469,7 +431,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 		error = evidence*logzerr
 		print ("Log Bayes evidence and error"), logz, logzerr
 		print ("Transformed evidence and error"), evidence, error
-		autocor_checks(sampler)
+		autocor_checks(sampler, output_filename)
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
  
 	
@@ -572,7 +534,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		if recovery_prob: max_recovery_time = nf.return_potention_recovery_date(node_health, time_max)	
 
 		data1 = [G_raw, health_data, node_health, nodelist, truth,  time_min, time_max, seed_date]
-		beta_significant = estimate_beta_significance(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time)
+		beta_significant = estimate_beta_significance(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time, time_min, time_max)
 		print ("pvalue of beta = "), beta_significant
 		
 		

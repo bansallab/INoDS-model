@@ -182,7 +182,7 @@ def randomize_network(G1):
 					G2[time][node1][node2]["weight"] = mean_wtlist
 					
 				else:counter+=1
-				if counter > 2* edge_size and not (G2[time].has_edge(node1, node2)):
+				if counter > 4* edge_size and not (G2[time].has_edge(node1, node2)):
 				##Give up after 2*#edges attempts
 					condition_met=True
 					G2[time].add_edge(node1, node2)

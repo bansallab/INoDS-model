@@ -469,7 +469,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	return best_par	
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks,  burnin =1000, iteration=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, test_beta_significance =True, remove_nodes=False, remove_edges=False, remove_cases=False):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks,  burnin =1000, iteration=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, test_beta_significance =True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -488,11 +488,9 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	G_raw = {}
 	## read in the dynamic network hypthosis (HA)
 	G_raw[0] = nf.create_dynamic_network(edge_filename,  edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max)
-	if remove_nodes: G_raw[0]= nf.delete_nodes(G_raw[0], remove_nodes)
-	if remove_edges: G_raw[0] = nf.delete_edges(G_raw[0], remove_edges)
 	nodelist = nf.extract_nodelist(G_raw[0])
 	
-	health_data, node_health = nf.extract_health_data(health_filename, infection_type, nodelist, time_max, diagnosis_lag, missing_case_percentage = remove_cases)
+	health_data, node_health = nf.extract_health_data(health_filename, infection_type, nodelist, time_max, diagnosis_lag)
 	#find the first time-period when an infection was reported 
 	seed_date = nf.find_seed_date(node_health)
 
@@ -579,10 +577,6 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	##############################################################################
 
 
-
-	
-	
-		
 ######################################################################33
 if __name__ == "__main__":
 

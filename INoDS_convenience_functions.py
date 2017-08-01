@@ -207,7 +207,7 @@ def stitch_health_data(health_data):
 	
 	return health_data	
 #######################################################################
-def extract_health_data(health_filename, infection_type, nodelist, time_max, diagnosis_lag=False, missing_case_percentage=0):
+def extract_health_data(health_filename, infection_type, nodelist, time_max, diagnosis_lag=False):
 
 	r"""node_health is a dictionary of dictionary. Primary key = node id.
 	Secondary key = 0/1. 0 (1) key stores chunk of days when the node is **known** to be healthy (infected).
@@ -225,7 +225,6 @@ def extract_health_data(health_filename, infection_type, nodelist, time_max, dia
 			diagnosis = int(row[2])
 			if node in nodelist and timestep<=time_max:health_data[node][timestep] = diagnosis
 			
-	if missing_case_percentage: health_data = remove_cases(health_data, missing_case_percentage)
 	if diagnosis_lag: health_data = stitch_health_data(health_data)
 
 	node_health = {}
@@ -255,20 +254,6 @@ def extract_health_data(health_filename, infection_type, nodelist, time_max, dia
 			
 	
 	return health_data, node_health
-##############################################################################
-def remove_cases(health_data, missing_case_percentage):
-
-	infected_cases = [(node, timestep, diagnosis) for node in health_data for timestep, diagnosis in health_data[node].items() if diagnosis ==1]
-	shuffle(infected_cases)
-
-	to_remove = int((missing_case_percentage* len(infected_cases))/100.)
-	infected_cases = infected_cases[:to_remove]
-
-	
-	for node,timestep, diagnosis in infected_cases:
-		health_data[node].pop(timestep, None)
-
-	return health_data
 ##############################################################################
 def select_healthy_time(healthy_list_node, node, health_data, infection_type):
 
@@ -479,49 +464,5 @@ def plot_beta_results(sampler, beta_truth, filename):
  	plt.tight_layout()
         plt.savefig(filename)
 
-########################################################################
-def delete_edges(g, percent_remove):
-
-	edge_list = []
-	for time in g:	
-		for edge1 in g[time].edges(): edge_list.append((time, edge1))
-
-	total_edges = len(edge_list)
-	del_edges = int((percent_remove*total_edges)/100.)
-	del_edges_per_time = int(del_edges/float(len(g)))
-	print total_edges, del_edges, del_edges_per_time, len(g)
-	G={}
-
-	for time in g:
-		G[time]=nx.Graph()
-		edgelist = g[time].edges()
-		shuffle(edgelist)
-		mod_edgelist = edgelist[del_edges_per_time:]
-		G[time].add_edges_from(mod_edgelist)
-		for (node1, node2) in mod_edgelist:
-			G[time][node1][node2]["weight"] = g[time][node1][node2]["weight"] 
-	
-	print ("graph check for del edges"), calculate_mean_temporal_jaccard(g, G)
-	return G
-########################################################################
-def delete_nodes(g, percent_remove):
-
-	edge_list = []
-	nodelist = [g[time].nodes() for time in g]
-	nodelist = [item for sublist in nodelist for item in sublist]
-	nodelist = list(set(nodelist))
-	total_nodes = len(nodelist)
-	del_nodes = int((percent_remove*total_nodes)/100.)
-	G={}
-	shuffle(nodelist)
-	mod_nodelist = nodelist[del_nodes:]
-	
-
-	for time in g:
-		G[time]=nx.Graph()
-		G[time] = g[time].subgraph(mod_nodelist)
-	
-	print ("graph check for del nodes"), calculate_mean_temporal_jaccard(g, G)
-	return G	
 ########################################################################	
 

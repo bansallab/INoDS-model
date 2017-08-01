@@ -469,7 +469,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	return best_par	
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks,  burnin =1000, iteration=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, test_beta_significance =True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks = 500, burnin =1000, iteration=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, test_beta_significance =True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -547,15 +547,21 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 			parameter_estimate =  summary(sampler)
 		else:
 			parameter_estimate = truth
-		
-		print ("generating null graphs.......")
-		jaccard_list =[]
-		for num in xrange(null_networks): 
-			if verbose: print ("generating null network="), num
-			G_raw[num+1], jaccard = nf.randomize_network(G_raw[0])
-			jaccard_list.append(jaccard)
-		if np.mean(jaccard_list)>0.4: 
-			print ("Warning!! Randomized network resembles empircal network. May lead to inconsistent evidence")
+
+		if isinstance(null_networks, dict):
+			for (num,val) in enumerate(null_networks):
+				G_raw[num+1] = null_networks[val]	
+			
+			
+		if isinstance(null_networks, int):
+			print ("generating null graphs.......")
+			jaccard_list =[]
+			for num in xrange(null_networks): 
+				if verbose: print ("generating null network="), num
+				G_raw[num+1], jaccard = nf.randomize_network(G_raw[0])
+				jaccard_list.append(jaccard)
+			if np.mean(jaccard_list)>0.4: 
+				print ("Warning!! Randomized network resembles empircal network. May lead to inconsistent evidence")
 		
 		true_value = truth
 		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_estimate]

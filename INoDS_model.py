@@ -22,7 +22,7 @@ np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 ########################################################################
-def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time,time_min, time_max):
+def compare_asocial_social_rate(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time,time_min, time_max):
 	r""" Returns man infected strength. Maximum infected strength should be more
 	than zero for the contact network to have any epidemiological significance 
 	"""
@@ -48,9 +48,9 @@ def estimate_beta_significance(best_par, data, contact_daylist, diagnosis_lag, r
 	beta_learn = [p["beta"][0]*infected_strength[network][focal_node][sick_day-1] for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
 
 	alpha_learn = [p["alpha"][0] for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
-
-	pval_list = [a > b for (b,a) in zip(beta_learn, alpha_learn)]
-	return sum(pval_list)/(1.*len(pval_list))
+	
+	plist = [a > b for (b,a) in zip(beta_learn, alpha_learn)]
+	return sum(plist)/(1.*len(plist))
 
 
 #########################################################################
@@ -136,7 +136,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## dates, but not when sick day is the seed date (i.e., the    #
 	## first  report of the infection in the network               #
 	################################################################
-	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['alpha'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date]
+	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['alpha'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
 	
 	################################################################
 	##Calculate rate of NOT learning for all the days the node was #
@@ -189,7 +189,10 @@ def calculate_infected_strength(node, time1, health_data_new, G):
 	## infected strength is sum of all edge weights of focal nodes connecting to infected nodes
 	## NOTE: health_data_new[node_i].get(time1) checks if time1 is present in health_data[node_i] AND if the value is 1
 		
-	if time1 in G and node in G[time1].nodes(): strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if health_data_new[node_i].get(time1)]
+
+	if time1 in G and node in G[time1].nodes(): 
+		#print node, time1, G[time1].neighbors(node)
+		strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if (node_i in health_data_new and health_data_new[node_i].get(time1))]
 	else: strength=[]
 	return sum(strength)
 
@@ -298,7 +301,7 @@ def log_prior(parameters,  null_comparison, diagnosis_lag, nsick_param, recovery
     else:
 	##although beta does not have an upper bound, specify an large upper bound to prevent runaway walkers
 	if p['beta'][0] <  0 or  p['beta'][0] >  1000: return -np.inf
-	if p['alpha'][0] < 0 : return -np.inf 
+	if p['alpha'][0] < 0 or  p['alpha'][0] > 1000: return -np.inf 
 	 
 	if diagnosis_lag: 
 		if (p['diag_lag'][0] < 0.000001).any() or (p['diag_lag'][0] > 1).any():return -np.inf
@@ -364,7 +367,7 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	else: 
 		infection_date = None
 		infected_strength=None	
-		threads = 6
+		threads = 8
 		
 
 	healthy_nodelist = return_healthy_nodelist(node_health)	
@@ -372,7 +375,8 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	if null_comparison:
 		logl_list = []
 		for network in G_raw:
-			logl = log_likelihood(np.array([network]), data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate)
+			logl = log_likelihood(np.array([network]), data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate)	
+			
 			logl_list.append(logl)
 		
 		return logl_list
@@ -443,33 +447,34 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 		df = pd.DataFrame(sampler)
 		file_name = output_filename + "_" + summary_type +  ".csv"
 		df.to_csv(file_name)
-		ha = sampler[0]
-		nulls = sampler[1:]
-		ext_val = [int(num>=ha) for num in nulls]
-		print ("p-value of network hypothesis"), sum(ext_val)/(1.*len(ext_val))
-		ind = [num for num in xrange(N_networks)]
+		if N_networks>1:
+			ha = sampler[0]
+			nulls = sampler[1:]
+			ext_val = [int(num>=ha) for num in nulls]
+			print ("p-value of network hypothesis"), sum(ext_val)/(1.*len(ext_val))
+			ind = [num for num in xrange(N_networks)]
 			
-		########pretty matplotlib figure format
-		axis_font = {'fontname':'Arial', 'size':'16'}
-		plt.clf()
-		plt.figure(figsize=(8, 10))    
-  		plt.gca().spines["top"].set_visible(False)    
-		plt.gca().spines["right"].set_visible(False)    
-		plt.gca().get_xaxis().tick_bottom()    
-		plt.gca().get_yaxis().tick_left()   
-		##############################
-		hist = np.histogram(sampler, 10)[0]
-		plt.hist(sampler[1:], bins=10, normed=False, color="#969696")
-		plt.axvline(x=sampler[0], ymin=0, ymax=max(hist), linewidth=2, color='#e41a1c', label ="Network hypothesis")
-		plt.xlabel("Log-likelihood", **axis_font)
-		plt.ylabel("Frequency", **axis_font)
-		plt.legend()
-		plt.legend(frameon=False)
-		plt.savefig(output_filename + "_" + summary_type +"_posterior.png")
+			########pretty matplotlib figure format
+			axis_font = {'fontname':'Arial', 'size':'16'}
+			plt.clf()
+			plt.figure(figsize=(8, 10))    
+	  		plt.gca().spines["top"].set_visible(False)    
+			plt.gca().spines["right"].set_visible(False)    
+			plt.gca().get_xaxis().tick_bottom()    
+			plt.gca().get_yaxis().tick_left()   
+			##############################
+			hist = np.histogram(sampler, 10)[0]
+			plt.hist(sampler[1:], bins=10, normed=False, color="#969696")
+			plt.axvline(x=sampler[0], ymin=0, ymax=max(hist), linewidth=2, color='#e41a1c', label ="Network hypothesis")
+			plt.xlabel("Log-likelihood", **axis_font)
+			plt.ylabel("Frequency", **axis_font)
+			plt.legend()
+			plt.legend(frameon=False)
+			plt.savefig(output_filename + "_" + summary_type +"_posterior.png")
 	return best_par	
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks = 500, burnin =1000, iteration=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, test_beta_significance =True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks = 500, burnin =1000, iteration=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, compare_asocial_social_force =True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -519,7 +524,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		best_par = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	
 	##########################################################################
-	if test_beta_significance:	
+	if compare_asocial_social_force:	
 
 		if not parameter_estimate: best_par = np.array(truth)
 
@@ -532,8 +537,8 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		if recovery_prob: max_recovery_time = nf.return_potention_recovery_date(node_health, time_max)	
 
 		data1 = [G_raw, health_data, node_health, nodelist, truth,  time_min, time_max, seed_date]
-		beta_significant = estimate_beta_significance(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time, time_min, time_max)
-		print ("pvalue of beta = "), beta_significant
+		alpha_dominant = compare_asocial_social_rate(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time, time_min, time_max)
+		print ("proportion of times asocial force > social force = "), alpha_dominant
 		
 		
 	#############################################################################
@@ -558,7 +563,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 			jaccard_list =[]
 			for num in xrange(null_networks): 
 				if verbose: print ("generating null network="), num
-				G_raw[num+1], jaccard = nf.randomize_network(G_raw[0])
+				G_raw[num+1], jaccard = nf.randomize_network(G_raw[0], network_dynamic = is_network_dynamic)
 				jaccard_list.append(jaccard)
 			if np.mean(jaccard_list)>0.4: 
 				print ("Warning!! Randomized network resembles empircal network. May lead to inconsistent evidence")

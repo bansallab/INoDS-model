@@ -154,40 +154,101 @@ def permute_network(G1, permutation):
 			
 	return G2 
 
+#############################################################################
+def randomize_edges(g):
+    """randomize a network using double-edged swaps.
+Note: This is used to randomize only the within-edges. A separate algorithm 
+(randomize_graph_outedges) is used to randomize between-edges"""
 
+    size = g.size() # number of edges in graph
+    nx.double_edge_swap(g, nswap = 100*size, max_tries = 10000000*size)
 #################################################################
-def randomize_network(G1):
+"""
+def randomize_network2(G1):
+
+	G = {}
+	for time1 in G1:
+		wtlist = [G1[time1][node1][node2]["weight"] for node1, node2 in G1[time1].edges()]
+		mean_wtlist = np.mean(wtlist)
+		degree_list = [G1[time1].degree(node) for node in sorted(G1[time1].nodes())]
+		shuffle(degree_list)
+		##connect stubs using havel hakimi
+		G[time1] = nx.havel_hakimi_graph(degree_list)
+		#relabel nodes to match the node names
+		mapping = {n1hat: n1 for (n1hat,n1) in zip(G[time1].nodes(), G1[time1].nodes())}
+		G[time1] = nx.relabel_nodes(G[time1],mapping, copy=False)
+		randomize_edges(G[time1])
+		for (n1, n2) in G[time1].edges():
+			G[time1][n1][n2]["weight"] = mean_wtlist
+		
+	
+	jaccard = calculate_mean_temporal_jaccard(G1, G)
+	return G, jaccard
+"""
+###################################################################
+def randomize_network(G1, network_dynamic = True):
 	
 	r""" Randomize edge connections of each network slice.
 	Also, set edge weight to mean.
 	""" 
 	G2 = {}
-	for time in G1.keys():
-		G2[time] = nx.Graph()
-		G2[time].add_nodes_from(G1[time].nodes())
-		edge_size = len(G1[time].edges())
-		wtlist = [G1[time][node1][node2]["weight"] for node1, node2 in G1[time].edges()]
-		mean_wtlist = np.mean(wtlist)
-		#shuffle(wtlist)
+	if network_dynamic: 
+		for time in G1.keys():
+			G2[time] = nx.Graph()
+			G2[time].add_nodes_from(G1[time].nodes())
+			edge_size = len(G1[time].edges())
+			wtlist = [G1[time][node1][node2]["weight"] for node1, node2 in G1[time].edges()]
+			mean_wtlist = np.mean(wtlist)
+		
 
-		for num in xrange(len(G1[time].edges())): #for each edge in G1[time]
+			for num in xrange(len(G1[time].edges())): #for each edge in G1[time]
+				#select two random nodes from G2[time]
+				condition_met = False # skip over node pairs that already have an edge
+				counter=0
+				while not condition_met:
+					node1, node2 = np.random.choice(G2[time].nodes(), 2, replace=False)
+					if not (G2[time].has_edge(node1, node2) or G1[time].has_edge(node1, node2)): 
+						condition_met = True
+						G2[time].add_edge(node1, node2)
+						G2[time][node1][node2]["weight"] = mean_wtlist
+					
+					else:counter+=1
+					if counter > 4* edge_size and not (G2[time].has_edge(node1, node2)):
+					##Give up after 2*#edges attempts
+						condition_met=True
+						G2[time].add_edge(node1, node2)
+						G2[time][node1][node2]["weight"] = mean_wtlist
+
+	else:
+		init_time = min([time1 for time1 in G1])
+		G2[init_time] = nx.Graph()
+		G2[init_time].add_nodes_from(G1[init_time].nodes())
+		edge_size = len(G1[init_time].edges())
+		wtlist = [G1[init_time][node1][node2]["weight"] for node1, node2 in G1[init_time].edges()]
+		mean_wtlist = np.mean(wtlist)
+		
+
+		for num in xrange(len(G1[init_time].edges())): #for each edge in G1[time]
 			#select two random nodes from G2[time]
 			condition_met = False # skip over node pairs that already have an edge
 			counter=0
 			while not condition_met:
-				node1, node2 = np.random.choice(G2[time].nodes(), 2, replace=False)
-				if not (G2[time].has_edge(node1, node2) or G1[time].has_edge(node1, node2)): 
+				node1, node2 = np.random.choice(G2[init_time].nodes(), 2, replace=False)
+				if not (G2[init_time].has_edge(node1, node2) or G1[init_time].has_edge(node1, node2)): 
 					condition_met = True
-					G2[time].add_edge(node1, node2)
-					G2[time][node1][node2]["weight"] = mean_wtlist
-					
+					G2[init_time].add_edge(node1, node2)
+					G2[init_time][node1][node2]["weight"] = mean_wtlist
+				
 				else:counter+=1
-				if counter > 4* edge_size and not (G2[time].has_edge(node1, node2)):
+				if counter > 4* edge_size and not (G2[init_time].has_edge(node1, node2)):
 				##Give up after 2*#edges attempts
 					condition_met=True
-					G2[time].add_edge(node1, node2)
-					G2[time][node1][node2]["weight"] = mean_wtlist
-		
+					G2[init_time].add_edge(node1, node2)
+					G2[init_time][node1][node2]["weight"] = mean_wtlist
+
+		time_list = [time1 for time1 in G1 if time1 != init_time]
+		for time1 in time_list:
+			G2[time1] = G2[init_time].copy()
 		
 	jaccard = calculate_mean_temporal_jaccard(G1, G2)
 
@@ -327,7 +388,8 @@ def return_contact_days_sick_nodes(node_health, seed_date, G_raw):
 		
 			for network in G_raw:
 				#choose only those days where nodes has contact the previous day
-				contact_daylist[network][(node, time1, time2)] =[day for day in range(day_start+1, time1+1) if node in G_raw[network][day-1].nodes() and G_raw[network][day-1].degree(node)>0]
+				
+				contact_daylist[network][(node, time1, time2)] =[day for day in range(day_start+1, time1+1) if (day-1) in G_raw[network] and node in G_raw[network][day-1].nodes() and G_raw[network][day-1].degree(node)>0]
 				##if there are no contacts then return the entire list
 				if len(contact_daylist[network][(node, time1, time2)])==0: 
 					contact_daylist[network][(node, time1, time2)] = [day for day in range(day_start+1, time1+1)]

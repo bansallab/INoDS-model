@@ -45,10 +45,7 @@ def compare_asocial_social_rate(best_par, data, contact_daylist, diagnosis_lag, 
 		infection_date = sorted(infection_date)
 		infected_strength = {0:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[0]) for time in range(time_min, time_max+1)} for node in nodelist}}
 
-	#for (focal_node, sick_day) in infection_date:
-	#	print focal_node, sick_day, infected_strength[network][focal_node].has_key(sick_day-1)
-
-		
+	
 	beta_learn = [p["beta"][0]*infected_strength[network][focal_node][sick_day-1] for (focal_node, sick_day) in infection_date if sick_day!=seed_date  and sick_day > network_min_date]
 
 	alpha_learn = [p["alpha"][0] for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]

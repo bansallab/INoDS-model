@@ -566,7 +566,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 			print ("generating null graphs.......")
 			jaccard_list =[]
 			for num in xrange(null_networks): 
-				if verbose: print ("generating null network="), num
+				if verbose: print ("generating null network ="), num
 				G_raw[num+1], jaccard = nf.randomize_network(G_raw[0], network_dynamic = is_network_dynamic)
 				jaccard_list.append(jaccard)
 			if np.mean(jaccard_list)>0.4: 

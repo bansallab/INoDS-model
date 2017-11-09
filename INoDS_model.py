@@ -51,7 +51,8 @@ def compare_asocial_social_rate(best_par, data, contact_daylist, diagnosis_lag, 
 	alpha_learn = [p["alpha"][0] for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
 	
 	plist = [a > b for (b,a) in zip(beta_learn, alpha_learn)]
-	return sum(plist)/(1.*len(plist))
+	if len(plist) >0: return sum(plist)/(1.*len(plist))
+	else: return "N/A"
 
 
 #########################################################################
@@ -149,6 +150,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## Calculate overall log likelihood                       #
 	########################################################### 
 	loglike = sum(overall_learn) + sum(overall_not_learn)
+	#print p['beta'][0], network_min_date, [(sick_day, round(infected_strength[network][focal_node][sick_day-1],2)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date  and sick_day > network_min_date and  round(infected_strength[network][focal_node][sick_day-1],2)>0]
 	if loglike == -np.inf or np.isnan(loglike) or (sum(overall_learn) + sum(overall_not_learn)==0):return -np.inf
 	else: return loglike
 
@@ -192,8 +194,9 @@ def calculate_infected_strength(node, time1, health_data_new, G):
 		
 
 	if time1 in G and node in G[time1].nodes(): 
-		#print node, time1, G[time1].neighbors(node)
 		strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if (node_i in health_data_new and health_data_new[node_i].get(time1))]
+		
+		
 	else: strength=[]
 	return sum(strength)
 

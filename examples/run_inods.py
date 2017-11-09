@@ -1,31 +1,47 @@
 import sys
-sys.path.insert(0, r'/home/prathasah/Dropbox (Bansal Lab)/Git-files/INoDS-model')
+import os
+sys.path = [os.path.abspath(os.path.join(__file__, '..', '..')), ] + sys.path
 import INoDS_model as inods
 import numpy as np
-import scipy.stats as ss
 import time
 ##################################################
+## NOTE: INoDS requires the network and health data to be formatted in
+## a specific manner. Check example files.
+###############################################
 
-null_networks = 10 ##the number of null networks required
-priors = [(0,1), (0,1)] #order = beta, alpha
-truth = [0.045, 0, ss.randint.cdf(0,0, null_networks+1)]
+#############################################
+### Please edit these based on your input files
+#############################################
+#Provide the network hypothesis stored as an edgelist
+edge_filename = "Edge_connections_poisson.csv"
+# Prvide the health data
+health_filename = "Health_data_nolag.csv"
+# provide filename for output files
+output_filename = "complete_data_SI_beta0.045"
 
+###########################################
+### Model parameters
+###########################################
 
-#recovery_prob required only when there is diagnosis_lag
-recovery_prob = [0, 1]
-verbose=True
-iteration = 1000
-burnin = 1000
-normalize_edge_weight= False
-nodelist = [str(num) for num in xrange(100)]
+##the number of null networks to create null ditribution of predictive power
+##NOTE: edge connections of networks are completely randomized,i.e., Jaccard index=0
+##If complete randomization is not possible, then the model will throw an error
+null_networks = 100 
+
+##do you know the true values? If not set it to [0,0,0]
+truth = [0.045, 0, 0.01]
 
 infection_type = "SI"
-edge_filename = "Edge_connections_poisson.csv"
-health_filename = "Health_data_nolag.csv"
-output_filename = "complete_data_infection_type"+infection_type+"_beta0.045_burnin_"+str(burnin)+"_iter_"+str(iteration)
+##specify chain length and burn-in
+burnin = 10
+#number of iterations after burnin
+iteration = 50
 
+#####################################
+#### run INoDS 
+######################################
 start = time.time()
-inods.run_nbda_analysis(edge_filename, health_filename, output_filename, infection_type, nodelist, recovery_prob, truth, null_networks, priors, iteration, burnin, diagnosis_lag=False, null_comparison=True)
+inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks,  iteration, burnin, verbose=True, diagnosis_lag=False, null_comparison=True, normalize_edge_weight=False, is_network_dynamic=True, parameter_estimate = True)
 
 end = time.time()
 print ("total run time="), end-start

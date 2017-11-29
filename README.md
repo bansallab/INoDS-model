@@ -19,9 +19,12 @@ Requirements for directly running the source code
 Usage
 ================================
 
-Coming soon!
+A quick demo of the code is included in the examples folder. The code can be run using the command
 
-Output
+$ python run_inods.py
+
+
+Model parameters
 ================================
 
 Coming soon!

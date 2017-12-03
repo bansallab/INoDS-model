@@ -35,10 +35,18 @@ health_filename: Filename of the infection data. See *Health_data_nolag.csv* in 
 
 Parameters
 ===================================
-output_filename: Desired filename for the output files
-infection_type: Can be either "SI", "SIR" or "SIS"
+output_filename: Desired filename for the output files.
+
+
+infection_type: Can be either "SI", "SIR" or "SIS".
+
+
 truth: True values of parameters, if known, are entered as a list. If unknown set the truth as a list of zeroes.
-null_networks: Total number of null network 
+
+
+null_networks: Total number of null network. 
+
+
 burnin: Total burn-in perior for *emcee* sampler 
 iteration: Total number of iterations after burn-in for *emcee* sampler. 
 diagnosis_lag: (optional, default = False). Set to True when actual infection timing is unknown and the infection file reports *diagnosis times* instead of *infection times*.  

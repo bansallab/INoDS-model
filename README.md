@@ -84,7 +84,7 @@ Output
 The tools outputs the following files
 
 * Convergence diagnostics: Autocorrelation plot of three randomly selected walkers.
-* Parameter estimation: Three files are generated for this step. (i) Output of *emcee.PTsampler* saved as an pickled object, (ii) Posterior plot of \beta and error parameter, (iii) A plot of walker positions for \beta parameter and \beta posterior.
+* Parameter estimation: Three files are generated for this step. (i) Output of *emcee.PTsampler* saved as an pickled object, (ii) Posterior plot of &beta;_ and error parameter, (iii) A plot of walker positions for &beta;_ parameter and &beta;_ posterior.
 * Null comparison: At this step two files are generated - a .csv file with predictive power of the empirical contact network (first row) and null network, and a figure summarizing the results.
 
 

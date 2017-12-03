@@ -28,8 +28,9 @@ $ python run_inods.py
 Input files
 ================================
 edge_filename: Filename of the network edgelist. See *Edge_connections_poisson.csv* in the examples folder for the accepted file format. 
-Note 1: Both dynamic and static networks are accepated. For static networks, remove the "timestep" column in the edgelist file
-Note 2: The networks can be unweighted or weighted. For unweighted networks (as shown in *Edge_connections_poisson.csv*), set all values in the *weight* column as one.
+* Note 1: Both dynamic and static networks are accepated. For static networks, remove the "timestep" column in the edgelist file
+* Note 2: The networks can be unweighted or weighted. For unweighted networks (as shown in *Edge_connections_poisson.csv*), set all values in the *weight* column as one.
+
 
 health_filename: Filename of the infection data. See *Health_data_nolag.csv* in the examples folder for the accepted file format. Infection states are coded as: 0 - diagnosed to be uninfected and 1 - diagnosed to be infected. Node ids in the infection data should correspond to the network edgelist, but infection data on all nodes (or all timesteps) is not required.
 

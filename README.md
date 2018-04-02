@@ -63,7 +63,7 @@ verbose: (optional, default = True) Set to False to supress printing of detailed
 null_comparison: (optional, default = True) Set to False to skip comparing the predictive power of empirical contact network to null networks.  
 
 
-edge_weights_to_binary: (optional, default = False) Set to True to remove the edge-weights of empircal network, and  assign all edges with edge-weight of one.
+edge_weights_to_binary: (optional, default = False) Set to True to remove edge-weights from the empircal network, and assign all edges with edge-weight of one.
 
 
 normalize_edge_weight: (optional, default = False) Set to True to normalize edge-weights of the empircal network by dividing all edge-weights with the maximum edge-weight.
@@ -93,5 +93,4 @@ License
 
 Copyright 2017 Pratha Sah and Shweta Bansal.
 
-INoDS is free software made available under the MIT License. For details see
-the LICENSE file
+INoDS is free software made available under the MIT License. For details see the LICENSE file.

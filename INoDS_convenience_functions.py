@@ -49,7 +49,7 @@ def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge
 	if "weight" not in header[2]:
 		raise ValueError("The third column in network file should contain string = weight")
 	if is_network_dynamic and (len(header)<4 or header[3] != "timestep"):
-		raise ValueError("Time-stamps are either missing or the column is not labelled as 'timestep'!")
+		raise ValueError("Time-stamps are either missing or the column is not labelled as 'timestep'! If network is static then set 'is_network_dynamic' as False")
 
 	##rename the weight column as weight
 	df.rename(columns={header[2]: 'weight'}, inplace=True)
@@ -89,7 +89,7 @@ def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge
 		edge_list = list(zip(df_sub.node1, df_sub.node2))
 		G[time1].add_edges_from(edge_list)
 		edge_attr = dict(zip(zip(df_sub.node1, df_sub.node2), df_sub.weight))
-		nx.set_edge_attributes(G[time1], 'weight', edge_attr)
+		nx.set_edge_attributes(G[time1],  edge_attr, 'weight')
 	
 	return G
 

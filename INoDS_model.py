@@ -23,8 +23,8 @@ warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 ########################################################################
 def compare_asocial_social_rate(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time,time_min, time_max):
-	r""" Returns man infected strength. Maximum infected strength should be more
-	than zero for the contact network to have any epidemiological significance 
+	r""" Significance test for beta parameter. The function compared social force (=beta*weight*infective degree) with alpha at each trasnsmission event.
+	Beta is considered to be significant if the percenrtage events where a < FOI is 5% or less
 	"""
 	
 	G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date  = data
@@ -430,7 +430,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 		print ("parameter estimate of network hypothesis"), best_par
 		
 			
-		fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$alpha$"], truths= true_value, truth_color ="red")
+		fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$epsilon$"], truths= true_value, truth_color ="red")
 			
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
 		nf.plot_beta_results(sampler, true_value[0], filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
@@ -478,7 +478,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	return best_par	
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks = 500, burnin =1000, iteration=2000, verbose=True, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, compare_asocial_social_force =True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth,  null_networks = 500, burnin =1000, iteration=2000, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, compare_asocial_social_force =True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -489,14 +489,14 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	## node_health[node id][infection status] = tuple of (min, max) time      #
 	## period when the node is in the infection status                        #
 	###########################################################################
-	#Can nodes recovery? 
+	#Can nodes recover? 
 	recovery_prob = nf.can_nodes_recover(infection_type)
 	time_min = 0
 	time_max = nf.extract_maxtime(edge_filename, health_filename)
 
 	G_raw = {}
 	## read in the dynamic network hypthosis (HA)
-	G_raw[0] = nf.create_dynamic_network(edge_filename,  edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max)
+	G_raw[0] = nf.create_dynamic_network(edge_filename, complete_nodelist, edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max)
 	nodelist = nf.extract_nodelist(G_raw[0])
 	
 	health_data, node_health = nf.extract_health_data(health_filename, infection_type, nodelist, time_max, diagnosis_lag)
@@ -567,7 +567,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 			jaccard_list =[]
 			for num in xrange(null_networks): 
 				if verbose: print ("generating null network ="), num
-				G_raw[num+1], jaccard = nf.randomize_network(G_raw[0], network_dynamic = is_network_dynamic)
+				G_raw[num+1], jaccard = nf.randomize_network(G_raw[0], complete_nodelist,network_dynamic = is_network_dynamic)
 				jaccard_list.append(jaccard)
 			if np.mean(jaccard_list)>0.4: 
 				print ("Warning!! Randomized network resembles empircal network. May lead to inconsistent evidence")

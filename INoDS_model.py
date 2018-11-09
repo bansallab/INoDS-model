@@ -23,7 +23,7 @@ warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 ########################################################################
 def compare_asocial_social_rate(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time,time_min, time_max):
-	r""" Significance test for beta parameter. The function compared social force (=beta*weight*infective degree) with alpha at each trasnsmission event.
+	r""" Significance test for beta parameter. The function compared social force (=beta*weight*infective degree) with epsilon at each trasnsmission event.
 	Beta is considered to be significant if the percenrtage events where a < FOI is 5% or less
 	"""
 	
@@ -48,9 +48,9 @@ def compare_asocial_social_rate(best_par, data, contact_daylist, diagnosis_lag, 
 	
 	beta_learn = [p["beta"][0]*infected_strength[network][focal_node][sick_day-1] for (focal_node, sick_day) in infection_date if sick_day!=seed_date  and sick_day > network_min_date]
 
-	alpha_learn = [p["alpha"][0] for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
+	epsilon_learn = [p["epsilon"][0] for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
 	
-	plist = [a > b for (b,a) in zip(beta_learn, alpha_learn)]
+	plist = [a > b for (b,a) in zip(beta_learn, epsilon_learn)]
 	if len(plist) >0: return sum(plist)/(1.*len(plist))
 	else: return "N/A"
 
@@ -138,13 +138,13 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## dates, but not when sick day is the seed date (i.e., the    #
 	## first  report of the infection in the network               #
 	################################################################
-	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['alpha'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
+	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['epsilon'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
 	
 	################################################################
 	##Calculate rate of NOT learning for all the days the node was #
 	## (either reported or inferred) healthy                       #
 	################################################################
-	overall_not_learn = [not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['alpha'][0], infected_strength[network], seed_date, network_min_date) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist]	
+	overall_not_learn = [not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['epsilon'][0], infected_strength[network], seed_date, network_min_date) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist]	
 	
 	###########################################################
 	## Calculate overall log likelihood                       #
@@ -155,11 +155,11 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	else: return loglike
 
 #############################################################################
-def not_learned_rate(focal_node, healthy_day1, healthy_day2, beta, alpha, infected_strength_network, seed_date, network_min_date):
+def not_learned_rate(focal_node, healthy_day1, healthy_day2, beta, epsilon, infected_strength_network, seed_date, network_min_date):
 	r""" Calculate 1- lambda for all uninfected days and returns 
 	sum of log(1-lambdas)"""
 
-	lambda_list = [1-calculate_lambda1(beta, alpha, infected_strength_network, focal_node, date) for date in [date1 for date1 in range(healthy_day1, healthy_day2+1) if date1!=seed_date and date1>network_min_date]]
+	lambda_list = [1-calculate_lambda1(beta, epsilon, infected_strength_network, focal_node, date) for date in [date1 for date1 in range(healthy_day1, healthy_day2+1) if date1!=seed_date and date1>network_min_date]]
 	return sum([np.log(num) for num in lambda_list])
 
 ##############################################################################
@@ -174,12 +174,12 @@ def return_healthy_nodelist(node_health1):
 	return healthy_nodelist	
 	
 ###############################################################################
-def calculate_lambda1(beta1, alpha1, infected_strength_network, focal_node, date):
+def calculate_lambda1(beta1, epsilon1, infected_strength_network, focal_node, date):
 	r""" This function calculates the infection potential of the 
 	focal_node based on (a) its infected_strength at the previous time step (date-1),
 	and (b) tranmission potential unexplained by the individual's network connections."""
 	
-	prob_not_infected = np.exp(-(beta1*infected_strength_network[focal_node][date-1] + alpha1))
+	prob_not_infected = np.exp(-(beta1*infected_strength_network[focal_node][date-1] + epsilon1))
 	#avoid returning 1 which will lead lnlike to be -np.inf
 	return min(1-prob_not_infected, 0.99999999)
 
@@ -209,13 +209,13 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, p
 		if null_comparison: 
 			arr2 = np.array(list(parameter_estimate) + list(arr))
 			return arr2.view(np.dtype([('beta', np.float),
-			('alpha', np.float),
+			('epsilon', np.float),
 			('gamma', np.float, nsick_param),
 			('diag_lag', np.float, nsick_param),
 			('model', np.float)]))
 
 		return arr.view(np.dtype([('beta', np.float),
-			('alpha', np.float),
+			('epsilon', np.float),
 			('gamma', np.float, nsick_param),
 			('diag_lag', np.float, nsick_param)]))
 
@@ -223,23 +223,23 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, p
 		if null_comparison: 
 			arr2 = np.array(list(parameter_estimate) + list(arr))
 			return arr2.view(np.dtype([('beta', np.float),
-			('alpha', np.float),
+			('epsilon', np.float),
 			('diag_lag', np.float, nsick_param),
 			('model', np.float)])) 
 	
 		return arr.view(np.dtype([('beta', np.float),
-			('alpha', np.float),
+			('epsilon', np.float),
 			('diag_lag', np.float, nsick_param)])) 
 	
 
 	if null_comparison: 
 			arr2 = np.array(list(parameter_estimate) + list(arr))
 			return arr2.view(np.dtype([('beta', np.float), 
-			('alpha', np.float),
+			('epsilon', np.float),
 			('model', np.float)]))
 			
 	return arr.view(np.dtype([('beta', np.float), 
-			('alpha', np.float)]))
+			('epsilon', np.float)]))
 	
 
 #####################################################################
@@ -305,7 +305,7 @@ def log_prior(parameters,  null_comparison, diagnosis_lag, nsick_param, recovery
     else:
 	##although beta does not have an upper bound, specify an large upper bound to prevent runaway walkers
 	if p['beta'][0] <  0 or  p['beta'][0] >  1000: return -np.inf
-	if p['alpha'][0] < 0 or  p['alpha'][0] > 1000: return -np.inf 
+	if p['epsilon'][0] < 0 or  p['epsilon'][0] > 1000: return -np.inf 
 	 
 	if diagnosis_lag: 
 		if (p['diag_lag'][0] < 0.000001).any() or (p['diag_lag'][0] > 1).any():return -np.inf
@@ -313,7 +313,7 @@ def log_prior(parameters,  null_comparison, diagnosis_lag, nsick_param, recovery
 			if (p['gamma'][0] < 0.000001).any() or (p['gamma'][0] > 1).any():return -np.inf 
 	
 	return 0    	
-	#return  ss.powerlaw.logpdf((1-p['alpha'][0]), 4)
+	#return  ss.powerlaw.logpdf((1-p['epsilon'][0]), 4)
 #######################################################################
 def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag=False, null_comparison=False, **kwargs3):
 	r"""Sampling performed using emcee """
@@ -349,9 +349,9 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 		starting_guess = np.zeros((ntemps, nwalkers, ndim))
 		##starting guess for beta  
 		starting_guess[:, :, 0] = np.random.uniform(low = 0, high = 10, size=(ntemps, nwalkers))
-		##start alpha close to zero
-		alphas = np.random.power(4, size = (ntemps, nwalkers))
-		starting_guess[:, :, 1] = 1-alphas
+		##start epsilon close to zero
+		epsilons = np.random.power(4, size = (ntemps, nwalkers))
+		starting_guess[:, :, 1] = 1-epsilons
 		if diagnosis_lag:
 			starting_guess[:, :, 2: ] = np.random.uniform(low = 0.001, high = 1,size=(ntemps, nwalkers, ndim-2))
 		
@@ -541,8 +541,8 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		if recovery_prob: max_recovery_time = nf.return_potention_recovery_date(node_health, time_max)	
 
 		data1 = [G_raw, health_data, node_health, nodelist, truth,  time_min, time_max, seed_date]
-		alpha_dominant = compare_asocial_social_rate(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time, time_min, time_max)
-		print ("proportion of times asocial force > social force = "), alpha_dominant
+		epsilon_dominant = compare_asocial_social_rate(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time, time_min, time_max)
+		print ("proportion of times asocial force > social force = "), epsilon_dominant
 		
 		
 	#############################################################################

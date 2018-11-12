@@ -33,15 +33,15 @@ truth = [0.045, 0, 0.01]
 
 infection_type = "SI"
 ##specify chain length and burn-in
-burnin = 50
+burnin = 1
 #number of iterations after burnin
-iteration = 50
+iteration = 5
 
 #####################################
 #### run INoDS 
 ######################################
 start = time.time()
-inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth, null_networks,   burnin, iteration, verbose=True, diagnosis_lag=False, null_comparison=True, normalize_edge_weight=False, is_network_dynamic=True, parameter_estimate = True)
+inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, null_networks,   burnin, iteration,  truth = None,verbose=True, diagnosis_lag=False, null_comparison=True, normalize_edge_weight=False, is_network_dynamic=True, parameter_estimate = True)
 
 end = time.time()
 print ("total run time="), end-start

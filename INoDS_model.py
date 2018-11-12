@@ -444,7 +444,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 		fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$epsilon$"], truths= true_value, truth_color ="red")
 			
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
-		nf.plot_beta_results(sampler, true_value[0], filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
+		nf.plot_beta_results(sampler, filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
 		logz, logzerr = log_evidence(sampler)
 		evidence = np.exp(logz)
 		error = evidence*logzerr
@@ -489,7 +489,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 	return CI	
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth,  null_networks = 500, burnin =1000, iteration=2000, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, compare_asocial_social_force =True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin =1000, iteration=2000, truth = None, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, compare_asocial_social_force =True):
 	r"""Main function for INoDS """
 	
 	###########################################################################

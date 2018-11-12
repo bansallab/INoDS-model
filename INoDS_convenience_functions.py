@@ -517,7 +517,7 @@ def compute_diagnosis_lag_truth(graph, contact_datelist, filename):
 	return lag_truths
 
 ######################################################333
-def plot_beta_results(sampler, beta_truth, filename):
+def plot_beta_results(sampler, filename):
 
         fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(15, 6))
         ax1.plot(sampler.chain[0, :, :, 0].T, color="k", lw=0.1)
@@ -528,7 +528,6 @@ def plot_beta_results(sampler, beta_truth, filename):
         samples = sampler.chain[0, :, :, 0].reshape((-1, 1))
 
         ax2.hist(samples, bins=50, histtype="step", normed=True, label="posterior", color="k", linewidth=2)
-        ax2.axvline(beta_truth, label="data point", color="r")
         ax2.legend(frameon=False, loc="best")
         ax2.set_xlabel("$beta$ posterior")
         

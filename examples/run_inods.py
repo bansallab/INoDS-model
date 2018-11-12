@@ -41,7 +41,7 @@ iteration = 5
 #### run INoDS 
 ######################################
 start = time.time()
-inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, null_networks,   burnin, iteration,  truth = None,verbose=True, diagnosis_lag=False, null_comparison=True, normalize_edge_weight=False, is_network_dynamic=True, parameter_estimate = True)
+inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, null_networks,   burnin, iteration,  truth = truth,verbose=True, diagnosis_lag=False, null_comparison=True, normalize_edge_weight=False, is_network_dynamic=True, parameter_estimate = True)
 
 end = time.time()
 print ("total run time="), end-start

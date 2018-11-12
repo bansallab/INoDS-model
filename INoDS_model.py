@@ -281,18 +281,25 @@ def flatten_chain(sampler):
 
 #######################################################################
 def summary(sampler):
-    r"""Calculate mean and standard deviation of the sampler chains. Best parameter are chosed
-	based on the maximum log probability. """
+    r"""Calculate mean and standard deviation of the sampler chains. """
   
+  
+    ndim = sampler.chain.shape[-1]
+    CI = np.empty([ndim, 3])
     #mean = samples.mean(0)
     #mean = [round(num,5) for num in mean]
     #sd = samples.std(0)
     #sd = [round(num,5) for num in sd]
   
-    best_lnprob = np.unravel_index(sampler.lnlikelihood[0,:,:].argmax(), sampler.lnlikelihood[0,:,:].shape)
-    best_pars = sampler.chain[0,best_lnprob[0],best_lnprob[1]]
+    #estimate from 0th temperature chain
+    post_samples = sampler.chain[0,:,:,:].reshape((-1, ndim))
     
-    return best_pars
+    for num in range(ndim):
+	CI[num] = np.percentile(post_samples[:,num], [2.5, 50, 97.5])
+    #best_lnprob = np.unravel_index(sampler.lnlikelihood[0,:,:].argmax(), sampler.lnlikelihood[0,:,:].shape)
+    #best_pars = sampler.chain[0,best_lnprob[0],best_lnprob[1]]
+    
+    return CI
 
 ##############################################################################
 def log_prior(parameters,  null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate):
@@ -426,9 +433,13 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 
 	if summary_type =="parameter_estimate":
 	
-		best_par = summary(sampler)
-		print ("parameter estimate of network hypothesis"), best_par
-		
+		CI = summary(sampler)
+		for num in xrange(CI.shape[0]):
+			if num ==0: print ("The median estimate and 95% credible interval for beta is " + str(round(CI[0,1],3))+" ["+ str(round(CI[0,0],3))+ "," + str(round(CI[0,2],3))+ "]")
+			elif num ==1: print ("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1,1],3))+" ["+ str(round(CI[1,0],3))+ "," + str(round(CI[1,2],3))+ "]")
+			else:
+				print ("Printing median and 95% credible interval for the rest of the unknown parameters")
+				print (str(round(CI[num,1],3))+" ["+ str(round(CI[num,0],3))+ "," + str(round(CI[num,2],3))+ "]")
 			
 		fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$epsilon$"], truths= true_value, truth_color ="red")
 			
@@ -475,7 +486,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 			plt.legend()
 			plt.legend(frameon=False)
 			plt.savefig(output_filename + "_" + summary_type +"_posterior.png")
-	return best_par	
+	return CI	
 	
 ######################################################################33
 def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth,  null_networks = 500, burnin =1000, iteration=2000, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, compare_asocial_social_force =True):
@@ -525,7 +536,8 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		print ("estimating model parameters.........................")
 		sampler = start_sampler(data1,  recovery_prob,  burnin, iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag,null_comparison=False)
 		summary_type = "parameter_estimate"
-		best_par = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
+		CI = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
+		best_par = np.array([CI[num,1] for num in xrange(CI.shape[0])])
 	
 	##########################################################################
 	if compare_asocial_social_force:	

@@ -37,7 +37,7 @@ def extract_maxtime(edge_filename, health_filename):
 	else: return min(max(df['timestep']), max(df2['timestep']))
 
 #################################################################################
-def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max):
+def create_dynamic_network(edge_filename, complete_nodelist, edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max):
 
 	
 	df = pd.read_csv(edge_filename)
@@ -83,6 +83,9 @@ def create_dynamic_network(edge_filename, edge_weights_to_binary, normalize_edge
 	G = {}
 	for time1 in range(df["timestep"].min(), df["timestep"].max()+1):  G[time1] = nx.Graph()
 	for time1 in G:
+		if complete_nodelist is not None:
+			complete_nodelist = [str(num) for num in complete_nodelist]
+			G[time1].add_nodes_from(complete_nodelist)
 		df_sub= df.loc[df['timestep'] == time1]
 		df_sub['node1'] = df_sub['node1'].astype(str)
 		df_sub['node2'] = df_sub['node2'].astype(str)
@@ -186,7 +189,7 @@ def randomize_network2(G1):
 	return G, jaccard
 """
 ###################################################################
-def randomize_network(G1, network_dynamic = True):
+def randomize_network(G1, complete_nodelist, network_dynamic = True):
 	
 	r""" Randomize edge connections of each network slice.
 	Also, set edge weight to mean.
@@ -195,7 +198,10 @@ def randomize_network(G1, network_dynamic = True):
 	if network_dynamic: 
 		for time in G1.keys():
 			G2[time] = nx.Graph()
-			G2[time].add_nodes_from(G1[time].nodes())
+			if complete_nodelist is not None:
+				complete_nodelist = [str(num) for num in complete_nodelist]
+				G2[time].add_nodes_from(complete_nodelist)
+			else: G2[time].add_nodes_from(G1[time].nodes())
 			edge_size = len(G1[time].edges())
 			wtlist = [G1[time][node1][node2]["weight"] for node1, node2 in G1[time].edges()]
 			mean_wtlist = np.mean(wtlist)
@@ -222,7 +228,10 @@ def randomize_network(G1, network_dynamic = True):
 	else:
 		init_time = min([time1 for time1 in G1])
 		G2[init_time] = nx.Graph()
-		G2[init_time].add_nodes_from(G1[init_time].nodes())
+		if complete_nodelist is not None:
+				complete_nodelist = [str(num) for num in complete_nodelist]
+				G2[init_time].add_nodes_from(complete_nodelist)
+		else: G2[init_time].add_nodes_from(G1[init_time].nodes())
 		edge_size = len(G1[init_time].edges())
 		wtlist = [G1[init_time][node1][node2]["weight"] for node1, node2 in G1[init_time].edges()]
 		mean_wtlist = np.mean(wtlist)
@@ -508,7 +517,7 @@ def compute_diagnosis_lag_truth(graph, contact_datelist, filename):
 	return lag_truths
 
 ######################################################333
-def plot_beta_results(sampler, beta_truth, filename):
+def plot_beta_results(sampler, filename):
 
         fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(15, 6))
         ax1.plot(sampler.chain[0, :, :, 0].T, color="k", lw=0.1)
@@ -519,7 +528,6 @@ def plot_beta_results(sampler, beta_truth, filename):
         samples = sampler.chain[0, :, :, 0].reshape((-1, 1))
 
         ax2.hist(samples, bins=50, histtype="step", normed=True, label="posterior", color="k", linewidth=2)
-        ax2.axvline(beta_truth, label="data point", color="r")
         ax2.legend(frameon=False, loc="best")
         ax2.set_xlabel("$beta$ posterior")
         

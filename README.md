@@ -21,7 +21,7 @@ Environment
 ================================
 A working Python environment for this project can be generated using the [conda](https://conda.io/docs/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file) "environment.yml":  
 ```conda env create -f environment.yml```  
-The environment is titled "inods" and can be activated:  
+To activate the Python environment titled "inods":  
 ```source activate inods```
 
 

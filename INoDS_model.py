@@ -16,6 +16,7 @@ import warnings
 import scipy.stats as ss
 import cPickle
 import time
+import itertools
 import pandas as pd
 np.seterr(invalid='ignore')
 np.seterr(divide='ignore')
@@ -138,13 +139,12 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## dates, but not when sick day is the seed date (i.e., the    #
 	## first  report of the infection in the network               #
 	################################################################
-	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['epsilon'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
-	
+	overall_learn = itertools.chain(np.log(calculate_lambda1(p['beta'][0], p['epsilon'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date)
 	################################################################
 	##Calculate rate of NOT learning for all the days the node was #
 	## (either reported or inferred) healthy                       #
 	################################################################
-	overall_not_learn = [not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['epsilon'][0], infected_strength[network], seed_date, network_min_date) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist]	
+	overall_not_learn = itertools.chain(not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['epsilon'][0], infected_strength[network], seed_date, network_min_date) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist)	
 	
 	###########################################################
 	## Calculate overall log likelihood                       #
@@ -159,8 +159,8 @@ def not_learned_rate(focal_node, healthy_day1, healthy_day2, beta, epsilon, infe
 	r""" Calculate 1- lambda for all uninfected days and returns 
 	sum of log(1-lambdas)"""
 
-	lambda_list = [1-calculate_lambda1(beta, epsilon, infected_strength_network, focal_node, date) for date in [date1 for date1 in range(healthy_day1, healthy_day2+1) if date1!=seed_date and date1>network_min_date]]
-	return sum([np.log(num) for num in lambda_list])
+	lambda_list = itertools.chain(1-calculate_lambda1(beta, epsilon, infected_strength_network, focal_node, date) for date in [date1 for date1 in range(healthy_day1, healthy_day2+1) if date1!=seed_date and date1>network_min_date])
+	return sum(itertools.chain(np.log(num) for num in list(lambda_list)))
 
 ##############################################################################
 def return_healthy_nodelist(node_health1):
@@ -168,8 +168,8 @@ def return_healthy_nodelist(node_health1):
 	where node1 is a node reported health and day1-day2 are the days
 	when the node is uninfected"""
 	
-	healthy_nodelist = [(node, healthy_day1, healthy_day2) for node in node_health1 if node_health1[node].has_key(0) for healthy_day1, healthy_day2 in node_health1[node][0]]
-	healthy_nodelist = sorted(healthy_nodelist)
+	healthy_nodelist = itertools.chain((node, healthy_day1, healthy_day2) for node in node_health1 if node_health1[node].has_key(0) for healthy_day1, healthy_day2 in node_health1[node][0])
+	healthy_nodelist = sorted(list(healthy_nodelist))
 	
 	return healthy_nodelist	
 	
@@ -194,7 +194,7 @@ def calculate_infected_strength(node, time1, health_data_new, G):
 		
 
 	if time1 in G and node in G[time1].nodes(): 
-		strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if (node_i in health_data_new and health_data_new[node_i].get(time1))]
+		strength = itertools.chain(G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if (node_i in health_data_new and health_data_new[node_i].get(time1)))
 		
 		
 	else: strength=[]

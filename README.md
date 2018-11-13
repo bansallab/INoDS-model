@@ -20,7 +20,7 @@ Requirements for directly running the source code
 Environment
 ================================
 A working Python environment for this project can be generated using the [conda](https://conda.io/docs/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file) "environment.yml":  
-```conda env create -f environment.yml``` 
+```conda env create -f environment.yml```  
 The environment is titled "inods" and can be activated:  
 ```source activate inods```
 

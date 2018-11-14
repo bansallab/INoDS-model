@@ -28,14 +28,14 @@ output_filename = "complete_data_SI_beta0.045"
 ##If complete randomization is not possible, then the model will throw an error
 null_networks = 100 
 
-##do you know the true values? If not set it to [0,0,0]
+##do you know the true values? 
 truth = [0.045, 0, 0.01]
 
 infection_type = "SI"
 ##specify chain length and burn-in
-burnin = 50
+burnin = 20
 #number of iterations after burnin
-iteration = 100
+iteration = 20
 
 #####################################
 #### run INoDS 

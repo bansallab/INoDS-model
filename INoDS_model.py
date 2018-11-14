@@ -139,18 +139,17 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## dates, but not when sick day is the seed date (i.e., the    #
 	## first  report of the infection in the network               #
 	################################################################
-	overall_learn = itertools.chain(np.log(calculate_lambda1(p['beta'][0], p['epsilon'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date)
+	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['epsilon'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
 	################################################################
 	##Calculate rate of NOT learning for all the days the node was #
 	## (either reported or inferred) healthy                       #
 	################################################################
-	overall_not_learn = itertools.chain(not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['epsilon'][0], infected_strength[network], seed_date, network_min_date) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist)	
-	
+	overall_not_learn = [not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['epsilon'][0], infected_strength[network], seed_date, network_min_date) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist]	
 	###########################################################
 	## Calculate overall log likelihood                       #
 	########################################################### 
 	loglike = sum(overall_learn) + sum(overall_not_learn)
-	#print p['beta'][0], network_min_date, [(sick_day, round(infected_strength[network][focal_node][sick_day-1],2)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date  and sick_day > network_min_date and  round(infected_strength[network][focal_node][sick_day-1],2)>0]
+	
 	if loglike == -np.inf or np.isnan(loglike) or (sum(overall_learn) + sum(overall_not_learn)==0):return -np.inf
 	else: return loglike
 
@@ -159,8 +158,8 @@ def not_learned_rate(focal_node, healthy_day1, healthy_day2, beta, epsilon, infe
 	r""" Calculate 1- lambda for all uninfected days and returns 
 	sum of log(1-lambdas)"""
 
-	lambda_list = itertools.chain(1-calculate_lambda1(beta, epsilon, infected_strength_network, focal_node, date) for date in [date1 for date1 in range(healthy_day1, healthy_day2+1) if date1!=seed_date and date1>network_min_date])
-	return sum(itertools.chain(np.log(num) for num in list(lambda_list)))
+	lambda_list = [1-calculate_lambda1(beta, epsilon, infected_strength_network, focal_node, date) for date in [date1 for date1 in range(healthy_day1, healthy_day2+1) if date1!=seed_date and date1>network_min_date]]
+	return sum([np.log(num) for num in list(lambda_list)])
 
 ##############################################################################
 def return_healthy_nodelist(node_health1):
@@ -168,7 +167,7 @@ def return_healthy_nodelist(node_health1):
 	where node1 is a node reported health and day1-day2 are the days
 	when the node is uninfected"""
 	
-	healthy_nodelist = itertools.chain((node, healthy_day1, healthy_day2) for node in node_health1 if node_health1[node].has_key(0) for healthy_day1, healthy_day2 in node_health1[node][0])
+	healthy_nodelist = [(node, healthy_day1, healthy_day2) for node in node_health1 if node_health1[node].has_key(0) for healthy_day1, healthy_day2 in node_health1[node][0]]
 	healthy_nodelist = sorted(list(healthy_nodelist))
 	
 	return healthy_nodelist	
@@ -194,7 +193,7 @@ def calculate_infected_strength(node, time1, health_data_new, G):
 		
 
 	if time1 in G and node in G[time1].nodes(): 
-		strength = itertools.chain(G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if (node_i in health_data_new and health_data_new[node_i].get(time1)))
+		strength = [G[time1][node][node_i]["weight"] for node_i in G[time1].neighbors(node) if (node_i in health_data_new and health_data_new[node_i].get(time1))]
 		
 		
 	else: strength=[]
@@ -286,41 +285,32 @@ def summary(sampler):
   
     ndim = sampler.chain.shape[-1]
     CI = np.empty([ndim, 3])
-    #mean = samples.mean(0)
-    #mean = [round(num,5) for num in mean]
-    #sd = samples.std(0)
-    #sd = [round(num,5) for num in sd]
   
     #estimate from 0th temperature chain
     post_samples = sampler.chain[0,:,:,:].reshape((-1, ndim))
     
     for num in range(ndim):
 	CI[num] = np.percentile(post_samples[:,num], [2.5, 50, 97.5])
-    #best_lnprob = np.unravel_index(sampler.lnlikelihood[0,:,:].argmax(), sampler.lnlikelihood[0,:,:].shape)
-    #best_pars = sampler.chain[0,best_lnprob[0],best_lnprob[1]]
+
     
     return CI
 
 ##############################################################################
-def log_prior(parameters,  null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate):
+def log_prior(parameters,  diagnosis_lag, nsick_param, recovery_prob, parameter_estimate):
     
+    null_comparison = False
     p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)
-    if null_comparison:
-	if p['model'][0] < 0.000001  or  p['model'][0] >  1: return -np.inf 
-	return 0
-
-    else:
-	##although beta does not have an upper bound, specify an large upper bound to prevent runaway walkers
-	if p['beta'][0] <  0 or  p['beta'][0] >  1000: return -np.inf
-	if p['epsilon'][0] < 0 or  p['epsilon'][0] > 1000: return -np.inf 
+    ##although beta does not have an upper bound, specify an large upper bound to prevent runaway walkers
+    if p['beta'][0] <  0 or  p['beta'][0] >  1000: return -np.inf
+    if p['epsilon'][0] < 0 or  p['epsilon'][0] > 1000: return -np.inf 
 	 
-	if diagnosis_lag: 
-		if (p['diag_lag'][0] < 0.000001).any() or (p['diag_lag'][0] > 1).any():return -np.inf
-		if recovery_prob:
-			if (p['gamma'][0] < 0.000001).any() or (p['gamma'][0] > 1).any():return -np.inf 
+    if diagnosis_lag: 
+	if (p['diag_lag'][0] < 0.000001).any() or (p['diag_lag'][0] > 1).any():return -np.inf
+	if recovery_prob:
+		if (p['gamma'][0] < 0.000001).any() or (p['gamma'][0] > 1).any():return -np.inf 
 	
-	return 0    	
-	#return  ss.powerlaw.logpdf((1-p['epsilon'][0]), 4)
+    return 0    	
+
 	
 
 #######################################################################
@@ -381,15 +371,19 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	################################################################################
 	if threads>1:
 		
-		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate), logpargs=(null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate), threads=threads) 
+		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate), logpargs=( diagnosis_lag, nsick_param, recovery_prob, parameter_estimate), threads=threads) 
 
 	if threads<=1:
-		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate), logpargs=(null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)) 
+		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 2,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate), logpargs=(diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)) 
 
 	#Run user-specified burnin
 	print ("burn in......")
+	t1  = time.time()
 	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = burnin)): 
-		if verbose:print("burnin progress..."), (100 * float(i) / burnin)
+		if verbose:
+			print("burnin progress..."), (100 * float(i) / burnin)
+			print ("time....."), time.time() - t1
+			
 		else: pass
 
 	sampler.reset()

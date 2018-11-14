@@ -12,9 +12,17 @@ The details of the tool is described in
 Requirements for directly running the source code
 ================================================
 * [Python 2.7](http://python.org/)
-* [Emcee 2.1.0](http://dfm.io/emcee/current/)
-* [Networkx 2](https://networkx.github.io/)
+* [Emcee 2.2.1](http://dfm.io/emcee/current/)
+* [Networkx 2.2](https://networkx.github.io/)
 * [Corner 2.0.1](https://pypi.python.org/pypi/corner/)
+
+
+Environment
+================================
+A working Python environment for this project can be generated using the [conda](https://conda.io/docs/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file) "environment.yml":  
+```conda env create -f environment.yml```  
+To activate the Python environment titled "inods":  
+```source activate inods```
 
 
 Usage

@@ -270,15 +270,6 @@ def log_evidence(sampler):
 	logZerr = abs(logZ2 - logZ)
 	return logZ, logZerr
 
-#####################################################################
-def flatten_chain(sampler):
-    r"""Flatten zero temperature chain"""
-
-    c = sampler.chain
-    c = c[0,:, :]
-    ct = c.reshape((np.product(c.shape[:-1]), c.shape[-1]))
-    return ct
-
 #######################################################################
 def summary(sampler):
     r"""Calculate mean and standard deviation of the sampler chains. """
@@ -287,8 +278,6 @@ def summary(sampler):
     ndim = sampler.chain.shape[-1]
     CI = np.empty([ndim, 3])
   
-    #estimate from 0th temperature chain
-    #post_samples = sampler.chain[0,:,:,:].reshape((-1, ndim))
     post_samples = sampler.chain[:,:,:].reshape((-1, ndim))
     
     for num in range(ndim):
@@ -336,25 +325,18 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	if recovery_prob: ndim_base += nsick_param
 	ndim = ndim_base+nsick_param
 	
-	####################### 
-	##Adjust temperature ladder
-	#######################
-	betas = np.linspace(0, -2, 15)
-	betas = 10**(np.sort(betas)[::-1])
-	ntemps = 15
-	
 	########################################### 
 	###set starting positions for the walker
 	#############################################
 	nwalkers = max(50, 2*ndim) # number of MCMC walkers
-	starting_guess = np.zeros((ntemps, nwalkers, ndim))
+	starting_guess = np.zeros((nwalkers, ndim))
 	##starting guess for beta  
-	starting_guess[:, :, 0] = np.random.uniform(low = 0, high = 10, size=(ntemps, nwalkers))
+	starting_guess[ :, 0] = np.random.uniform(low = 0, high = 10, size=nwalkers)
 	##start epsilon close to zero
-	epsilons = np.random.power(4, size = (ntemps, nwalkers))
-	starting_guess[:, :, 1] = 1-epsilons
+	epsilons = np.random.power(4, size = nwalkers)
+	starting_guess[:, 1] = 1-epsilons
 	if diagnosis_lag:
-		starting_guess[:, :, 2: ] = np.random.uniform(low = 0.001, high = 1,size=(ntemps, nwalkers, ndim-2))
+		starting_guess[:, 2: ] = np.random.uniform(low = 0.001, high = 1,size=(nwalkers, ndim-2))
 		
 		
 	################################################################################
@@ -380,12 +362,11 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	################################################################################
 	if threads>1:
 		
-		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate), logpargs=( diagnosis_lag, nsick_param, recovery_prob, parameter_estimate), threads=threads) 
+		sampler = EnsembleSampler(nwalkers=nwalkers, dim=ndim, lnpostfn = log_posterior, a=2.0, args = [data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate], threads = threads) 
 
 	if threads<=1:
-		#sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 2,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate), logpargs=(diagnosis_lag, nsick_param, recovery_prob, parameter_estimate))
 		sampler = EnsembleSampler(nwalkers=nwalkers, dim=ndim, lnpostfn = log_posterior, a=2.0, args = [data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate])
-		starting_guess = starting_guess[0,:,:]
+
 
 	#Run user-specified burnin
 	print ("burn in......")
@@ -411,7 +392,6 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 		print ("could not estimate autocorrelation")
 	##############################
 	#The resulting samples are stored as the sampler.chain property:
-	#assert sampler.chain.shape == (ntemps, nwalkers, niter/nthin, ndim)
 	assert sampler.chain.shape == (nwalkers, niter/nthin, ndim)
 	return sampler, ndim
 #######################################################################
@@ -485,16 +465,10 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 				print ("Printing median and 95% credible interval for the rest of the unknown parameters")
 				print (str(round(CI[num,1],3))+" ["+ str(round(CI[num,0],3))+ "," + str(round(CI[num,2],3))+ "]")
 			
-		#fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$epsilon$"], truths= true_value, truth_color ="red")
 		fig = corner.corner(sampler.flatchain[:, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$epsilon$"], truths= true_value, truth_color ="red")
 			
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
 		nf.plot_beta_results(sampler, filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
-		#logz, logzerr = log_evidence(sampler)
-		#evidence = np.exp(logz)
-		#error = evidence*logzerr
-		#print ("Log Bayes evidence and error"), logz, logzerr
-		#print ("Transformed evidence and error"), evidence, error
 		bic  = calculate_BIC(sampler, G_raw, nparam)
 		print ("BIC ===="), bic
 		autocor_checks(sampler, output_filename)

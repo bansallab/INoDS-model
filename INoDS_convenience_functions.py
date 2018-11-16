@@ -474,24 +474,7 @@ def calculate_mean_temporal_jaccard(g1, g2):
 		else:ratio=0
 		jlist.append(ratio)
 	return np.mean(jlist)
-########################################################################
-def check_init_pars(logl, logp, p0, data):
-    
-    ok = True
-    p0 = p0.reshape((1, -1, p0.shape[-1]))
-    if logp(p0) == -np.inf: 
-		print ("warning log prior false")
-		ok = False
-       
-    p1 = p0[0::][0]
-    loglist=[]
-    for num in xrange(p1.shape[0]): 
-		loglist.append(logl(p1[num], data))
-   
-    if -np.inf in loglist:ok = False
-       
 
-    return ok
 ########################################################
 def compute_diagnosis_lag_truth(graph, contact_datelist, filename):
 
@@ -519,14 +502,11 @@ def compute_diagnosis_lag_truth(graph, contact_datelist, filename):
 def plot_beta_results(sampler, filename):
 
         fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(15, 6))
-        #ax1.plot(sampler.chain[0, :, :, 0].T, color="k", lw=0.1)
-	ax1.plot(sampler.chain[ :, :, 0].T, color="k", lw=0.1)
+        ax1.plot(sampler.chain[ :, :, 0].T, color="k", lw=0.1)
         ax1.set_ylabel("Walker positions for $beta$")
         ax1.set_xlabel("Simulation step")
         
-    
-        #samples = sampler.chain[0, :, :, 0].reshape((-1, 1))
-	samples = sampler.chain[ :, :, 0].reshape((-1, 1))
+        samples = sampler.chain[ :, :, 0].reshape((-1, 1))
 
         ax2.hist(samples, bins=50, histtype="step", normed=True, label="posterior", color="k", linewidth=2)
         ax2.legend(frameon=False, loc="best")

@@ -23,7 +23,7 @@ np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
 ########################################################################
-def compare_asocial_social_rate(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time,time_min, time_max):
+def compute_pval_beta(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time,time_min, time_max):
 	r""" Significance test for beta parameter. The function compared social force (=beta*weight*infective degree) with epsilon at each trasnsmission event.
 	Beta is considered to be significant if the percenrtage events where a < FOI is 5% or less
 	"""
@@ -439,15 +439,10 @@ def getstate(sampler):
 def calculate_BIC(sampler, G_raw, nparam):
 	
 	best_lglike= max(sampler.flatlnprobability)
-	print ("best log likelihood"), best_lglike
+	#print ("best log likelihood"), best_lglike
 	highest_prob = np.argmax(sampler.lnprobability)
 	hp_loc = np.unravel_index(highest_prob, sampler.lnprobability.shape)
-	print ("best param values"), sampler.chain[hp_loc[0], hp_loc[1]]
-	N = 0
-	for time in G_raw[0]:
-		N+= len(G_raw[0][time].nodes)
-		
-	print ("N for BIC calculation =="),N
+	#print ("best param values"), sampler.chain[hp_loc[0], hp_loc[1]]
 	BIC = np.log(N)*nparam - 2*(best_lglike)
 	return BIC
 
@@ -510,7 +505,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 	return CI	
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin =1000, iteration=2000, truth = None, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, compare_asocial_social_force =True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin =1000, iteration=2000, truth = None, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, estimate_pval_beta_parameter =True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -562,7 +557,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		best_par = np.array([CI[num,1] for num in xrange(CI.shape[0])])
 		print ("time==="), time.time() - start
 		##################################################################
-	if compare_asocial_social_force:	
+	if estimate_pval_beta_parameter:	
 
 		if not parameter_estimate: best_par = np.array(truth)
 
@@ -575,8 +570,8 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		if recovery_prob: max_recovery_time = nf.return_potention_recovery_date(node_health, time_max)	
 
 		data1 = [G_raw, health_data, node_health, nodelist, truth,  time_min, time_max, seed_date]
-		epsilon_dominant = compare_asocial_social_rate(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time, time_min, time_max)
-		print ("proportion of times asocial force > social force = "), epsilon_dominant
+		epsilon_dominant = compute_pval_beta(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time, time_min, time_max)
+		print ("p-value of beta parameter= "), epsilon_dominant
 		
 	#############################################################################
 	if not parameter_estimate and sum(truth)==0:

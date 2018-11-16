@@ -4,8 +4,8 @@ import networkx as nx
 import csv
 import numpy as np
 from numpy import ma
-from emcee import PTSampler
 from emcee import autocorr
+from emcee import EnsembleSampler
 import corner
 import copy
 import matplotlib.pyplot as plt
@@ -144,7 +144,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	##Calculate rate of NOT learning for all the days the node was #
 	## (either reported or inferred) healthy                       #
 	################################################################
-	overall_not_learn = [not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['epsilon'][0], infected_strength[network], seed_date, network_min_date) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist]	
+	overall_not_learn = [not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['epsilon'][0], infected_strength[network], seed_date, network_min_date) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist]
 	###########################################################
 	## Calculate overall log likelihood                       #
 	########################################################### 
@@ -181,6 +181,7 @@ def calculate_lambda1(beta1, epsilon1, infected_strength_network, focal_node, da
 	prob_not_infected = np.exp(-(beta1*infected_strength_network[focal_node][date-1] + epsilon1))
 	#avoid returning 1 which will lead lnlike to be -np.inf
 	return min(1-prob_not_infected, 0.99999999)
+
 
 ################################################################################
 def calculate_infected_strength(node, time1, health_data_new, G):
@@ -246,7 +247,7 @@ def autocor_checks(sampler, output_filename):
 	r""" Perform autocorrelation checks"""
 
 	print('Chains contain samples after thinning (= 5) across all walkers ='), sampler.chain.shape[-2]*sampler.chain.shape[1]
-	f = [autocorr.function(sampler.chain[0, i, :])  for i in range(3)]
+	f = [autocorr.function(sampler.chain[i, :])  for i in range(3)]
 
         ax = plt.figure().add_subplot(111)
 	for i in range(3):
@@ -287,7 +288,8 @@ def summary(sampler):
     CI = np.empty([ndim, 3])
   
     #estimate from 0th temperature chain
-    post_samples = sampler.chain[0,:,:,:].reshape((-1, ndim))
+    #post_samples = sampler.chain[0,:,:,:].reshape((-1, ndim))
+    post_samples = sampler.chain[:,:,:].reshape((-1, ndim))
     
     for num in range(ndim):
 	CI[num] = np.percentile(post_samples[:,num], [2.5, 50, 97.5])
@@ -309,9 +311,15 @@ def log_prior(parameters,  diagnosis_lag, nsick_param, recovery_prob, parameter_
 	if recovery_prob:
 		if (p['gamma'][0] < 0.000001).any() or (p['gamma'][0] > 1).any():return -np.inf 
 	
-    return 0    	
+    return 0
 
+##############################################################################
+def log_posterior(parameters, data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate):
+
+	lnprior =  log_prior(parameters,  diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)
+	lnlik = log_likelihood(parameters, data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate)
 	
+	return lnprior + lnlik
 
 #######################################################################
 def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag=False, null_comparison=False,  **kwargs3):
@@ -356,7 +364,8 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	if not diagnosis_lag:		
 		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
 		infection_date = sorted(infection_date)
-		infected_strength = {network:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[network]) for time in range(time_min, time_max+1)} for node in nodelist} for network in G_raw}
+		##for parameter estimate step we need data for the empirical network only
+		infected_strength = {0:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[0]) for time in range(time_min, time_max+1)} for node in nodelist}}
 		pool = None
 		threads = 1
 		
@@ -367,40 +376,44 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 		threads = 8
 		
 
-	healthy_nodelist = return_healthy_nodelist(node_health)	
+	healthy_nodelist = return_healthy_nodelist(node_health)
 	################################################################################
 	if threads>1:
 		
 		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 1.5,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate), logpargs=( diagnosis_lag, nsick_param, recovery_prob, parameter_estimate), threads=threads) 
 
 	if threads<=1:
-		sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 2,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate), logpargs=(diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)) 
+		#sampler = PTSampler(ntemps=ntemps, nwalkers=nwalkers, dim=ndim, betas=betas, logl=log_likelihood, logp=log_prior, a = 2,  loglargs=(data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate), logpargs=(diagnosis_lag, nsick_param, recovery_prob, parameter_estimate))
+		sampler = EnsembleSampler(nwalkers=nwalkers, dim=ndim, lnpostfn = log_posterior, a=2.0, args = [data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, parameter_estimate])
+		starting_guess = starting_guess[0,:,:]
 
 	#Run user-specified burnin
 	print ("burn in......")
-	t1  = time.time()
 	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(starting_guess, iterations = burnin)): 
 		if verbose:
 			print("burnin progress..."), (100 * float(i) / burnin)
-			print ("time....."), time.time() - t1
+
 			
 		else: pass
 
 	sampler.reset()
 	#################################
 	print ("sampling........")
-	nthin = 5
-	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(p, lnprob0 = lnprob,  lnlike0= lnlike, iterations= niter, thin= nthin)):  
+	nthin = 2
+	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(p, lnprob0 = lnprob,  iterations= niter, thin= nthin)):  
 		if verbose:print("sampling progress"), (100 * float(i) / niter)
 		else: pass
 
 
-	
+	try:
+		print ("autocorrelation time"), np.mean([autocorr.integrated_time(walker) for walker in sampler.chain], axis=0)
+	except:
+		print ("could not estimate autocorrelation")
 	##############################
 	#The resulting samples are stored as the sampler.chain property:
-	assert sampler.chain.shape == (ntemps, nwalkers, niter/nthin, ndim)
-
-	return sampler
+	#assert sampler.chain.shape == (ntemps, nwalkers, niter/nthin, ndim)
+	assert sampler.chain.shape == (nwalkers, niter/nthin, ndim)
+	return sampler, ndim
 #######################################################################
 def perform_null_comparison(data, recovery_prob,  burnin, niter, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag=False, null_comparison=True, **kwargs3):
 	r"""Sampling performed using emcee """
@@ -442,8 +455,24 @@ def getstate(sampler):
         del self_dict['pool']
 	return self_dict
 
+######################################################
+def calculate_BIC(sampler, G_raw, nparam):
+	
+	best_lglike= max(sampler.flatlnprobability)
+	print ("best log likelihood"), best_lglike
+	highest_prob = np.argmax(sampler.lnprobability)
+	hp_loc = np.unravel_index(highest_prob, sampler.lnprobability.shape)
+	print ("best param values"), sampler.chain[hp_loc[0], hp_loc[1]]
+	N = 0
+	for time in G_raw[0]:
+		N+= len(G_raw[0][time].nodes)
+		
+	print ("N for BIC calculation =="),N
+	BIC = np.log(N)*nparam - 2*(best_lglike)
+	return BIC
+
 ##############################################################################################
-def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type):
+def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, nparam = None):
 	r""" Summarize the results of the sampler"""
 
 	if summary_type =="parameter_estimate":
@@ -456,15 +485,18 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
 				print ("Printing median and 95% credible interval for the rest of the unknown parameters")
 				print (str(round(CI[num,1],3))+" ["+ str(round(CI[num,0],3))+ "," + str(round(CI[num,2],3))+ "]")
 			
-		fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$epsilon$"], truths= true_value, truth_color ="red")
+		#fig = corner.corner(sampler.flatchain[0, :, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$epsilon$"], truths= true_value, truth_color ="red")
+		fig = corner.corner(sampler.flatchain[:, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$epsilon$"], truths= true_value, truth_color ="red")
 			
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
 		nf.plot_beta_results(sampler, filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
-		logz, logzerr = log_evidence(sampler)
-		evidence = np.exp(logz)
-		error = evidence*logzerr
-		print ("Log Bayes evidence and error"), logz, logzerr
-		print ("Transformed evidence and error"), evidence, error
+		#logz, logzerr = log_evidence(sampler)
+		#evidence = np.exp(logz)
+		#error = evidence*logzerr
+		#print ("Log Bayes evidence and error"), logz, logzerr
+		#print ("Transformed evidence and error"), evidence, error
+		bic  = calculate_BIC(sampler, G_raw, nparam)
+		print ("BIC ===="), bic
 		autocor_checks(sampler, output_filename)
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
  
@@ -525,6 +557,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	G_raw[0] = nf.create_dynamic_network(edge_filename, complete_nodelist, edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max)
 	nodelist = nf.extract_nodelist(G_raw[0])
 	
+	
 	health_data, node_health = nf.extract_health_data(health_filename, infection_type, nodelist, time_max, diagnosis_lag)
 	#find the first time-period when an infection was reported 
 	seed_date = nf.find_seed_date(node_health)
@@ -549,9 +582,9 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 
 		print ("estimating model parameters.........................")
 		start = time.time()
-		sampler = start_sampler(data1,  recovery_prob,  burnin, iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag)
+		sampler, nparameters = start_sampler(data1,  recovery_prob,  burnin, iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag)
 		summary_type = "parameter_estimate"
-		CI = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type)
+		CI = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, nparam = nparameters)
 		best_par = np.array([CI[num,1] for num in xrange(CI.shape[0])])
 		print ("time==="), time.time() - start
 		##################################################################

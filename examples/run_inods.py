@@ -33,9 +33,9 @@ truth = [0.045, 0, 0.01]
 
 infection_type = "SI"
 ##specify chain length and burn-in
-burnin = 20
+burnin = 2
 #number of iterations after burnin
-iteration = 20
+iteration = 10
 
 #####################################
 #### run INoDS 

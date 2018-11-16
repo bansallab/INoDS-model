@@ -93,7 +93,6 @@ def create_dynamic_network(edge_filename, complete_nodelist, edge_weights_to_bin
 		G[time1].add_edges_from(edge_list)
 		edge_attr = dict(zip(zip(df_sub.node1, df_sub.node2), df_sub.weight))
 		nx.set_edge_attributes(G[time1],  edge_attr, 'weight')
-	
 	return G
 
 ##########################################################################
@@ -520,12 +519,14 @@ def compute_diagnosis_lag_truth(graph, contact_datelist, filename):
 def plot_beta_results(sampler, filename):
 
         fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(15, 6))
-        ax1.plot(sampler.chain[0, :, :, 0].T, color="k", lw=0.1)
+        #ax1.plot(sampler.chain[0, :, :, 0].T, color="k", lw=0.1)
+	ax1.plot(sampler.chain[ :, :, 0].T, color="k", lw=0.1)
         ax1.set_ylabel("Walker positions for $beta$")
         ax1.set_xlabel("Simulation step")
         
     
-        samples = sampler.chain[0, :, :, 0].reshape((-1, 1))
+        #samples = sampler.chain[0, :, :, 0].reshape((-1, 1))
+	samples = sampler.chain[ :, :, 0].reshape((-1, 1))
 
         ax2.hist(samples, bins=50, histtype="step", normed=True, label="posterior", color="k", linewidth=2)
         ax2.legend(frameon=False, loc="best")

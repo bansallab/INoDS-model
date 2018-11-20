@@ -381,13 +381,13 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	#################################
 	print ("sampling........")
 	nthin = 2
-	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(p, lnprob0 = lnprob,  iterations= niter, thin= nthin)):  
+	for i, (p, lnprob, lnlike) in enumerate(sampler.sample(p, lnprob0 = lnprob,  iterations= niter, thin= nthin)):
 		if verbose:print("sampling progress"), (100 * float(i) / niter)
 		else: pass
 
 
 	try:
-		print ("autocorrelation time"), np.mean([autocorr.integrated_time(walker) for walker in sampler.chain], axis=0)
+		print ("autocorrelation time"), np.mean(sampler.get_autocorr_time())
 	except:
 		print ("could not estimate autocorrelation")
 	##############################
@@ -436,13 +436,16 @@ def getstate(sampler):
 	return self_dict
 
 ######################################################
-def calculate_BIC(sampler, G_raw, nparam):
+def calculate_BIC(sampler, G_raw, network, nparam):
 	
 	best_lglike= max(sampler.flatlnprobability)
 	#print ("best log likelihood"), best_lglike
 	highest_prob = np.argmax(sampler.lnprobability)
 	hp_loc = np.unravel_index(highest_prob, sampler.lnprobability.shape)
 	#print ("best param values"), sampler.chain[hp_loc[0], hp_loc[1]]
+	N = 0
+	for time in G_raw[network]:
+		N+= len(G_raw[network][time].nodes)
 	BIC = np.log(N)*nparam - 2*(best_lglike)
 	return BIC
 
@@ -464,7 +467,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 			
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
 		nf.plot_beta_results(sampler, filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
-		bic  = calculate_BIC(sampler, G_raw, nparam)
+		bic  = calculate_BIC(sampler, G_raw, 0, nparam)
 		print ("BIC ===="), bic
 		autocor_checks(sampler, output_filename)
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)

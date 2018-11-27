@@ -472,7 +472,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		autocor_checks(sampler, output_filename)
 		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
  
-	
+		return CI
 	#################################
 	if summary_type =="null_comparison":
 		best_par = None
@@ -505,7 +505,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 			plt.legend()
 			plt.legend(frameon=False)
 			plt.savefig(output_filename + "_" + summary_type +"_posterior.png")
-	return CI	
+		
 	
 ######################################################################33
 def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin =1000, iteration=2000, truth = None, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, estimate_pval_beta_parameter =True):
@@ -583,8 +583,10 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	########################################################################
 	##Step 2: Perform hypothesis testing by comparing HA against null networks
 	if null_comparison:
-		if parameter_estimate:	
-			parameter_estimate =  summary(sampler)
+		if parameter_estimate:
+			
+			CI =  summary(sampler)
+			parameter_estimate = [CI[0][1], CI[1][1]]
 		else:
 			parameter_estimate = truth
 

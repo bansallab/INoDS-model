@@ -456,13 +456,21 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 	if summary_type =="parameter_estimate":
 	
 		CI = summary(sampler)
+		tf = open(output_filename+ "_parameter_summary.txt", "w+")
 		for num in xrange(CI.shape[0]):
-			if num ==0: print ("The median estimate and 95% credible interval for beta is " + str(round(CI[0,1],3))+" ["+ str(round(CI[0,0],3))+ "," + str(round(CI[0,2],3))+ "]")
-			elif num ==1: print ("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1,1],3))+" ["+ str(round(CI[1,0],3))+ "," + str(round(CI[1,2],3))+ "]")
+			if num ==0:
+				print ("The median estimate and 95% credible interval for beta is " + str(round(CI[0,1],3))+" ["+ str(round(CI[0,0],3))+ "," + str(round(CI[0,2],3))+ "]")
+				tf.write("The median estimate and 95% credible interval for beta is " + str(round(CI[0,1],3))+" ["+ str(round(CI[0,0],3))+ "," + str(round(CI[0,2],3))+ "]\n")
+			elif num ==1:
+				print ("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1,1],3))+" ["+ str(round(CI[1,0],3))+ "," + str(round(CI[1,2],3))+ "]")
+				tf.write("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1,1],3))+" ["+ str(round(CI[1,0],3))+ "," + str(round(CI[1,2],3))+ "]\n")
 			else:
 				print ("Printing median and 95% credible interval for the rest of the unknown parameters")
 				print (str(round(CI[num,1],3))+" ["+ str(round(CI[num,0],3))+ "," + str(round(CI[num,2],3))+ "]")
-			
+				tf.write("median and 95% credible interval for the rest of the unknown parameter #" +str(num)+"\n")
+				tf.write(str(round(CI[num,1],3))+" ["+ str(round(CI[num,0],3))+ "," + str(round(CI[num,2],3))+ "]\n")
+		tf.close()
+		
 		fig = corner.corner(sampler.flatchain[:, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$epsilon$"], truths= true_value, truth_color ="red")
 			
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
@@ -470,7 +478,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		bic  = calculate_BIC(sampler, G_raw, 0, nparam)
 		print ("BIC ===="), bic
 		autocor_checks(sampler, output_filename)
-		cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
+		#cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
  
 		return CI
 	#################################

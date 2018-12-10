@@ -106,7 +106,9 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## dates, but not when sick day is the seed date (i.e., the    #
 	## first  report of the infection in the network               #
 	################################################################
-	overall_learn = [np.log(calculate_lambda1(p['beta'][0], p['epsilon'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
+	overall_learn_raw = [(calculate_lambda1(p['beta'][0], p['epsilon'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
+	overall_learn_raw= [1 if num==0 else num for num in overall_learn_raw]
+	overall_learn= [np.log(num) for num in overall_learn_raw]
 	################################################################
 	##Calculate rate of NOT learning for all the days the node was #
 	## (either reported or inferred) healthy                       #
@@ -114,7 +116,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	overall_not_learn = [not_learned_rate(focal_node,healthy_day1, healthy_day2, p['beta'][0],p['epsilon'][0], infected_strength[network], seed_date, network_min_date) for (focal_node,healthy_day1, healthy_day2) in healthy_nodelist]
 	###########################################################
 	## Calculate overall log likelihood                       #
-	########################################################### 
+	###########################################################
 	loglike = sum(overall_learn) + sum(overall_not_learn)
 	
 	if loglike == -np.inf or np.isnan(loglike) or (sum(overall_learn) + sum(overall_not_learn)==0):return -np.inf
@@ -375,8 +377,7 @@ def perform_null_comparison(data, recovery_prob,  burnin, niter, verbose,  conta
 		infection_date = sorted(infection_date)
 		infected_strength = {network:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[network]) for time in range(time_min, time_max+1)} for node in nodelist} for network in G_raw}
 		pool = None
-		threads = 1
-		
+		threads = 1	
 		
 	else: 
 		infection_date = None
@@ -456,6 +457,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		df = pd.DataFrame(sampler)
 		file_name = output_filename + "_" + summary_type +  ".csv"
 		df.to_csv(file_name)
+
 		if N_networks>1:
 			ha = sampler[0]
 			nulls = sampler[1:]
@@ -480,7 +482,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 			plt.legend()
 			plt.legend(frameon=False)
 			plt.savefig(output_filename + "_" + summary_type +"_posterior.png")
-		
+
 	
 ######################################################################33
 def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin =1000, iteration=2000, truth = None, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):

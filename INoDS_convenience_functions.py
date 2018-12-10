@@ -125,10 +125,10 @@ def permute_network(G1, permutation):
 	jaccard_list = []
 	for time in G1.keys():
 		G2[time] = nx.Graph()
-		G2[time].add_nodes_from(G1[time].nodes())
-		num_swaps = int(permutation*len(G1[time].edges()))
-		num_orig = len(G1[time].edges()) - num_swaps
-		orig_edges = G1[time].edges()
+		G2[time].add_nodes_from(G1[time].nodes)
+		num_swaps = int(permutation*len(G1[time].edges))
+		num_orig = len(G1[time].edges) - num_swaps
+		orig_edges = list(G1[time].edges)
 		shuffle(orig_edges)
 		track_wt = []
 		for num in xrange(num_orig):
@@ -137,17 +137,17 @@ def permute_network(G1, permutation):
 			wt= G1[time][node1][node2]["weight"]
 			G2[time][node1][node2]["weight"] = wt 
 			track_wt.append(wt)
-		wtlist = [G1[time][node1][node2]["weight"] for node1, node2 in G1[time].edges()]
+		wtlist = [G1[time][node1][node2]["weight"] for node1, node2 in G1[time].edges]
 		#remove edge weights that have been assigned
 		for wt in track_wt: wtlist.remove(wt)
 		
 
 		connections = 0 # skip over node pairs that already have an edge
 		while connections <num_swaps:
-			node1, node2 = np.random.choice(G2[time].nodes(), 2, replace=False)
+			node1, node2 = np.random.choice(G2[time].nodes, 2, replace=False)
 			if not G2[time].has_edge(node1, node2): 
 					G2[time].add_edge(node1, node2)
-					if len(wtlist)==0:print ("check!!!"), permutation, num_swaps, num_orig, len(G2[time].edges())
+					if len(wtlist)==0:print ("check!!!"), permutation, num_swaps, num_orig, len(G2[time].edges)
 					G2[time][node1][node2]["weight"] = wtlist.pop()
 					connections+=1
 		
@@ -158,35 +158,11 @@ def permute_network(G1, permutation):
 
 #############################################################################
 def randomize_edges(g):
-    """randomize a network using double-edged swaps.
-Note: This is used to randomize only the within-edges. A separate algorithm 
-(randomize_graph_outedges) is used to randomize between-edges"""
+    """randomize a network using double-edged swaps"""
 
     size = g.size() # number of edges in graph
     nx.double_edge_swap(g, nswap = 100*size, max_tries = 10000000*size)
-#################################################################
-"""
-def randomize_network2(G1):
 
-	G = {}
-	for time1 in G1:
-		wtlist = [G1[time1][node1][node2]["weight"] for node1, node2 in G1[time1].edges()]
-		mean_wtlist = np.mean(wtlist)
-		degree_list = [G1[time1].degree(node) for node in sorted(G1[time1].nodes())]
-		shuffle(degree_list)
-		##connect stubs using havel hakimi
-		G[time1] = nx.havel_hakimi_graph(degree_list)
-		#relabel nodes to match the node names
-		mapping = {n1hat: n1 for (n1hat,n1) in zip(G[time1].nodes(), G1[time1].nodes())}
-		G[time1] = nx.relabel_nodes(G[time1],mapping, copy=False)
-		randomize_edges(G[time1])
-		for (n1, n2) in G[time1].edges():
-			G[time1][n1][n2]["weight"] = mean_wtlist
-		
-	
-	jaccard = calculate_mean_temporal_jaccard(G1, G)
-	return G, jaccard
-"""
 ###################################################################
 def randomize_network(G1, complete_nodelist, network_dynamic = True):
 	

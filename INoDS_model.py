@@ -1,8 +1,9 @@
+import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import networkx as nx
 import csv
-import numpy as np
+import emcee
 from numpy import ma
 from emcee import autocorr
 from emcee import EnsembleSampler
@@ -22,40 +23,6 @@ np.seterr(invalid='ignore')
 np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
-########################################################################
-def compute_pval_beta(best_par, data, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time,time_min, time_max):
-	r""" Significance test for beta parameter. The function compared social force (=beta*weight*infective degree) with epsilon at each trasnsmission event.
-	Beta is considered to be significant if the percenrtage events where a < FOI is 5% or less
-	"""
-	
-	G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date  = data
-	health_data_new = copy.deepcopy(health_data)
-	node_health_new = copy.deepcopy(node_health)
-	p = to_params(best_par, False, diagnosis_lag, nsick_param, recovery_prob, None)
-	network=0 
-	G= G_raw[0]
-
-	network_min_date = min(G.keys())
-	
-	if diagnosis_lag:
-		infected_strength, healthy_nodelist, infection_date = diagnosis_adjustment(G, network, p,nodelist, contact_daylist, recovery_prob,max_recovery_time, node_health_new, health_data_new)
-
-	else: 
-		healthy_nodelist = return_healthy_nodelist(node_health)	
-		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
-		infection_date = sorted(infection_date)
-		infected_strength = {0:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[0]) for time in range(time_min, time_max+1)} for node in nodelist}}
-
-	
-	beta_learn = [p["beta"][0]*infected_strength[network][focal_node][sick_day-1] for (focal_node, sick_day) in infection_date if sick_day!=seed_date  and sick_day > network_min_date]
-
-	epsilon_learn = [p["epsilon"][0] for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
-	
-	plist = [a > b for (b,a) in zip(beta_learn, epsilon_learn)]
-	if len(plist) >0: return sum(plist)/(1.*len(plist))
-	else: return "N/A"
-
-
 #########################################################################
 def diagnosis_adjustment(G, network, p, nodelist,contact_daylist,  recovery_prob, max_recovery_time, node_health_new, health_data_new):
 
@@ -249,14 +216,14 @@ def autocor_checks(sampler, output_filename):
 	print('Chains contain samples after thinning (= 5) across all walkers ='), sampler.chain.shape[-2]*sampler.chain.shape[1]
 	f = [autocorr.function(sampler.chain[i, :])  for i in range(3)]
 
-        ax = plt.figure().add_subplot(111)
+	ax = plt.figure().add_subplot(111)
 	for i in range(3):
-            ax.plot(f[i], "k")
-	    ax.axhline(0, color="k")
-	    ax.set_xlabel(r"Steps (after thinning)")
-	    ax.set_title(r"Autocorrelation of three walkers")
-	    ax.set_ylabel(r"Autocorrelation")
-	    plt.savefig(output_filename+'_autocorrelation.png')
+		ax.plot(f[i], "k")
+		ax.axhline(0, color="k")
+		ax.set_xlabel(r"Steps (after thinning)")
+		ax.set_title(r"Autocorrelation of three walkers")
+		ax.set_ylabel(r"Autocorrelation")
+		plt.savefig(output_filename+'_autocorrelation.png')
 
 #####################################################################
 def log_evidence(sampler):
@@ -281,7 +248,7 @@ def summary(sampler):
     post_samples = sampler.chain[:,:,:].reshape((-1, ndim))
     
     for num in range(ndim):
-	CI[num] = np.percentile(post_samples[:,num], [2.5, 50, 97.5])
+        CI[num] = np.percentile(post_samples[:,num], [2.5, 50, 97.5])
 
     
     return CI
@@ -293,13 +260,12 @@ def log_prior(parameters,  diagnosis_lag, nsick_param, recovery_prob, parameter_
     p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)
     ##although beta does not have an upper bound, specify an large upper bound to prevent runaway walkers
     if p['beta'][0] <  0 or  p['beta'][0] >  1000: return -np.inf
-    if p['epsilon'][0] < 0 or  p['epsilon'][0] > 1000: return -np.inf 
-	 
-    if diagnosis_lag: 
-	if (p['diag_lag'][0] < 0.000001).any() or (p['diag_lag'][0] > 1).any():return -np.inf
-	if recovery_prob:
-		if (p['gamma'][0] < 0.000001).any() or (p['gamma'][0] > 1).any():return -np.inf 
-	
+    if p['epsilon'][0] < 0 or  p['epsilon'][0] > 1000: return -np.inf
+    
+    if diagnosis_lag:
+        if (p['diag_lag'][0] < 0.000001).any() or (p['diag_lag'][0] > 1).any():return -np.inf
+        if recovery_prob:
+           if (p['gamma'][0] < 0.000001).any() or (p['gamma'][0] > 1).any():return -np.inf 
     return 0
 
 ##############################################################################
@@ -433,7 +399,7 @@ def perform_null_comparison(data, recovery_prob,  burnin, niter, verbose,  conta
 def getstate(sampler):
         self_dict = sampler.__dict__.copy()
         del self_dict['pool']
-	return self_dict
+        return self_dict
 
 ######################################################
 def calculate_BIC(sampler, G_raw, network, nparam):
@@ -470,7 +436,8 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 				tf.write("median and 95% credible interval for the rest of the unknown parameter #" +str(num)+"\n")
 				tf.write(str(round(CI[num,1],3))+" ["+ str(round(CI[num,0],3))+ "," + str(round(CI[num,2],3))+ "]\n")
 		tf.close()
-		
+				
+			
 		fig = corner.corner(sampler.flatchain[:, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$epsilon$"], truths= true_value, truth_color ="red")
 			
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
@@ -479,8 +446,8 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		print ("BIC ===="), bic
 		autocor_checks(sampler, output_filename)
 		#cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
- 
 		return CI
+
 	#################################
 	if summary_type =="null_comparison":
 		best_par = None
@@ -500,7 +467,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 			axis_font = {'fontname':'Arial', 'size':'16'}
 			plt.clf()
 			plt.figure(figsize=(8, 10))    
-	  		plt.gca().spines["top"].set_visible(False)    
+			plt.gca().spines["top"].set_visible(False)    
 			plt.gca().spines["right"].set_visible(False)    
 			plt.gca().get_xaxis().tick_bottom()    
 			plt.gca().get_yaxis().tick_left()   
@@ -516,7 +483,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin =1000, iteration=2000, truth = None, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, estimate_pval_beta_parameter =True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin =1000, iteration=2000, truth = None, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -567,23 +534,6 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		CI = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, nparam = nparameters)
 		best_par = np.array([CI[num,1] for num in xrange(CI.shape[0])])
 		print ("time==="), time.time() - start
-		##################################################################
-	if estimate_pval_beta_parameter:	
-
-		if not parameter_estimate: best_par = np.array(truth)
-
-		if diagnosis_lag:
-			#Format: contact_daylist[network_type][(node, time1, time2)] =       
-			## potential time-points when the node could have contract infection 
-			contact_daylist = nf.return_contact_days_sick_nodes(node_health, seed_date, G_raw)
-			nsick_param = len(contact_daylist[0])
-		
-		if recovery_prob: max_recovery_time = nf.return_potention_recovery_date(node_health, time_max)	
-
-		data1 = [G_raw, health_data, node_health, nodelist, truth,  time_min, time_max, seed_date]
-		epsilon_dominant = compute_pval_beta(best_par, data1, contact_daylist, diagnosis_lag, recovery_prob, nsick_param, max_recovery_time, time_min, time_max)
-		print ("p-value of beta parameter= "), epsilon_dominant
-		
 	#############################################################################
 	if not parameter_estimate and sum(truth)==0:
 		raise ValueError("Parameter estimate is set to False and no truth is supplied!")

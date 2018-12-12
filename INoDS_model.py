@@ -107,7 +107,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## first  report of the infection in the network               #
 	################################################################
 	overall_learn_raw = [(calculate_lambda1(p['beta'][0], p['epsilon'][0], infected_strength[network], focal_node, sick_day)) for (focal_node, sick_day) in infection_date if sick_day!=seed_date and sick_day > network_min_date]
-	overall_learn_raw= [1 if num==0 else num for num in overall_learn_raw]
+	overall_learn_raw= [0.00000001 if num==0 else num for num in overall_learn_raw]
 	overall_learn= [np.log(num) for num in overall_learn_raw]
 	################################################################
 	##Calculate rate of NOT learning for all the days the node was #
@@ -118,7 +118,6 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## Calculate overall log likelihood                       #
 	###########################################################
 	loglike = sum(overall_learn) + sum(overall_not_learn)
-	
 	if loglike == -np.inf or np.isnan(loglike) or (sum(overall_learn) + sum(overall_not_learn)==0):return -np.inf
 	else: return loglike
 
@@ -436,6 +435,11 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 				print (str(round(CI[num,1],3))+" ["+ str(round(CI[num,0],3))+ "," + str(round(CI[num,2],3))+ "]")
 				tf.write("median and 95% credible interval for the rest of the unknown parameter #" +str(num)+"\n")
 				tf.write(str(round(CI[num,1],3))+" ["+ str(round(CI[num,0],3))+ "," + str(round(CI[num,2],3))+ "]\n")
+		
+		bic  = calculate_BIC(sampler, G_raw, 0, nparam)
+		tf.write("BIC of the network hypothesis is = " + str(bic)+ "]\n")
+		print ("BIC ===="), bic
+		
 		tf.close()
 				
 			
@@ -443,8 +447,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 			
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
 		nf.plot_beta_results(sampler, filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
-		bic  = calculate_BIC(sampler, G_raw, 0, nparam)
-		print ("BIC ===="), bic
+		
 		autocor_checks(sampler, output_filename)
 		#cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
 		return CI
@@ -562,6 +565,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 				if verbose: print ("generating null network ="), num
 				G_raw[num+1], jaccard = nf.randomize_network(G_raw[0], complete_nodelist,network_dynamic = is_network_dynamic)
 				jaccard_list.append(jaccard)
+	
 			if np.mean(jaccard_list)>0.4: 
 				print ("Warning!! Randomized network resembles empircal network. May lead to inconsistent evidence")
 		

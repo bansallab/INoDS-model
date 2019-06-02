@@ -13,35 +13,23 @@ import time
 ### Please edit these based on your input files
 #############################################
 #Provide the network hypothesis stored as an edgelist
-edge_filename = "Edge_connections_poisson.csv"
+edge_filename = "Edge_connections_poisson_n100_d4.csv"
 # Prvide the health data
-health_filename = "Health_data_nolag.csv"
+health_filename = "Health_data_nolag_beta_0.05_iter_0.csv"
 # provide filename for output files
-output_filename = "complete_data_SI_beta0.045"
-
+output_filename = "complete_data_SI_beta0.05"
 ###########################################
 ### Model parameters
 ###########################################
-
-##the number of null networks to create null ditribution of predictive power
-##NOTE: edge connections of networks are completely randomized,i.e., Jaccard index=0
-##If complete randomization is not possible, then the model will throw an error
-null_networks = 100 
-
-##do you know the true values? 
-truth = [0.045, 0, 0.01]
+##do you know the true values of beta and epsilon? 
+truth = [0.05, 0]
 
 infection_type = "SI"
-##specify chain length and burn-in
-burnin = 2
-#number of iterations after burnin
-iteration = 10
-
 #####################################
 #### run INoDS 
 ######################################
 start = time.time()
-inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, null_networks,   burnin, iteration,  truth = truth,verbose=True, diagnosis_lag=False, null_comparison=True, normalize_edge_weight=False, is_network_dynamic=True, parameter_estimate = True)
+inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth = truth, verbose=True, diagnosis_lag=False, null_comparison=True, normalize_edge_weight=False, is_network_dynamic=True, parameter_estimate = True)
 
 end = time.time()
-print ("total run time="), end-start
+print ("total run time (in minds)="), (end-start)/60.

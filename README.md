@@ -58,10 +58,10 @@ truth (optional, default = None): True values of parameters, if known, are enter
 null_networks (optional, default = 500): Total number of null network. Default number of null networks is 500.
 
 
-burnin (optional, default = 500): Total burn-in perior for *emcee* sampler.
+burnin (optional, default = 1000): Total burn-in perior for *emcee* sampler.
 
 
-max_iteration (optional, default = 10,000): Maximum number of iterations after burn-in for *emcee* sampler. The sampler terminates at maximum iteration even if convergence is not achieved.  
+max_iteration (optional, default = 50,000): Maximum number of iterations after burn-in for *emcee* sampler. The sampler terminates at maximum iteration even if convergence is not achieved.  
 
 
 diagnosis_lag: (optional, default = False). Set to True when actual infection timing is unknown and the infection file reports *diagnosis times* instead of *infection times*.  

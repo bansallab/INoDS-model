@@ -292,7 +292,7 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	########################################### 
 	###set starting positions for the walker
 	#############################################
-	nwalkers = max(20, 4*ndim) # number of MCMC walkers
+	nwalkers = max(30, 4*ndim) # number of MCMC walkers
 	starting_guess = np.zeros((nwalkers, ndim))
 	##starting guess for beta  
 	starting_guess[ :, 0] = np.random.uniform(low = 0, high = 10, size=nwalkers)
@@ -502,7 +502,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin =500, max_iteration=10000, truth = None, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin = 1000, max_iteration=50000, truth = None, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
 	r"""Main function for INoDS """
 	
 	###########################################################################

@@ -338,11 +338,11 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	sampler = emcee.EnsembleSampler(nwalkers=nwalkers, ndim=ndim, log_prob_fn = log_posterior, a=2.0, args = [data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate], backend=backend) 
 
 	#Run user-specified burnin
-	print ("burn in......")
+	if verbose:print ("burn in......")
 	state = sampler.run_mcmc(starting_guess, burnin, progress = verbose)
 	sampler.reset()
 	#################################
-	print ("sampling........")
+	if verbose:print ("sampling........")
 	# We'll track how the average autocorrelation time estimate changes
 	index = 0
 	autocorr = np.empty(niter)
@@ -358,7 +358,7 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 		# Using tol=0 means that we'll always get an estimate even
 		# if it isn't trustworthy
 		tau = sampler.get_autocorr_time(tol=0)
-		print ("autocorr==="), sampler.iteration, tau
+		if verbose: print ("autocorr==="), sampler.iteration, tau
 		autocorr[index] = np.mean(tau)
 		index += 1
 	    
@@ -366,7 +366,7 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 		converged = np.all(tau * 100 < sampler.iteration)
 		converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
 		if converged:
-			print ("convergence acheived at iteration #"), sampler.iteration
+			if verbose:print ("convergence acheived at iteration #"), sampler.iteration
 			break
 		old_tau = tau
 
@@ -546,13 +546,13 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		true_value = truth
 		data1 = [G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date]
 
-		print ("estimating model parameters.........................")
+		if verbose: print ("estimating model parameters.........................")
 		start = time.time()
 		sampler, autocorr, index, nparameters = start_sampler(data1,  recovery_prob,  burnin, max_iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag = diagnosis_lag)
 		summary_type = "parameter_estimate"
 		CI = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, nparam = nparameters, autocorr_chain = autocorr, index= index)
 		best_par = np.array([CI[num,1] for num in xrange(CI.shape[0])])
-		print ("time taken for parameter estimation (mins)==="), (time.time() - start)/60.
+		if verbose: print ("time taken for parameter estimation (mins)==="), (time.time() - start)/60.
 	#############################################################################
 	if not parameter_estimate and sum(truth)==0:
 		raise ValueError("Parameter estimate is set to False and no truth is supplied!")
@@ -573,7 +573,6 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 			
 			
 		if isinstance(null_networks, int):
-			print ("generating null graphs.......")
 			jaccard_list =[]
 			for num in xrange(null_networks): 
 				if verbose: print ("generating null network ="), num
@@ -593,7 +592,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 			nsick_param = len(contact_daylist[0])
 
 		if recovery_prob: max_recovery_time = nf.return_potention_recovery_date(node_health, time_max)	
-		print ("comparing network hypothesis with null..........................")
+		if verbose: print ("comparing network hypothesis with null..........................")
 
 
 	

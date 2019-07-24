@@ -13,11 +13,11 @@ import time
 ### Please edit these based on your input files
 #############################################
 #Provide the network hypothesis stored as an edgelist
-edge_filename = "missing_nodes_70_iter_5_edge_connections_poisson_n100_d4.csv"
+edge_filename = "missing_nodes_50_iter_1_edge_connections_poisson_n100_d4.csv"
 # Prvide the health data
-health_filename = "Health_data_nolag_beta_0.05_iter_5.csv"
+health_filename = "Health_data_nolag_beta_0.1_iter_1.csv"
 # provide filename for output files
-output_filename = "complete_data_SI_beta0.05"
+output_filename = "complete_data_SI_beta0.1_iter1"
 ###########################################
 ### Model parameters
 ###########################################

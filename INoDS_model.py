@@ -115,6 +115,9 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## Calculate overall log likelihood                       #
 	###########################################################
 	loglike = overall_learn.sum() + overall_not_learn.sum()
+	#print ("check !!!!"), p['beta'][0], p['epsilon'][0], loglike
+	#if round(p['beta'][0], 2) == 0.10:  print ("check when beta true!!!!"), p['beta'][0], p['epsilon'][0], loglike
+	#if round(p['beta'][0], 2) == 0.01:  print ("check when beta 0.01!!!!"), p['beta'][0], p['epsilon'][0], loglike
 	if np.isinf(loglike) or np.isnan(loglike) or (loglike==0):return -np.inf
 	else: return loglike
 
@@ -142,7 +145,7 @@ def calculate_lambda1(beta1, epsilon1, infected_strength_network, focal_node, da
 	focal_node based on (a) its infected_strength at the previous time step (date-1),
 	and (b) tranmission potential unexplained by the individual's network connections."""
 	
-	return np.exp(-(beta1*infected_strength_network[focal_node][date-1] + epsilon1))
+	return 1-(np.exp(-(beta1*infected_strength_network[focal_node][date-1] + epsilon1)))
 
 
 ################################################################################
@@ -252,9 +255,9 @@ def summary(sampler):
 def log_prior(parameters,  diagnosis_lag, nsick_param, recovery_prob, parameter_estimate):
     
     
-    ##although beta does not have an upper bound, specify an large upper bound to prevent runaway walkers
+    ##although beta and epsilon does not have an upper bound, specify an large upper bound to prevent runaway walkers
     if (np.array(parameters[0:2]) <  0).any() or  (np.array(parameters[0:2]) >  1000).any(): return -np.inf
-    
+  
     if diagnosis_lag:
         if (np.array(parameters[2:]) <  0.000001).any() or  (np.array(parameters[2:]) >  1).any(): return -np.inf
 
@@ -292,7 +295,7 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	########################################### 
 	###set starting positions for the walker
 	#############################################
-	nwalkers = max(30, 4*ndim) # number of MCMC walkers
+	nwalkers = max(50, 4*ndim) # number of MCMC walkers
 	starting_guess = np.zeros((nwalkers, ndim))
 	##starting guess for beta  
 	starting_guess[ :, 0] = np.random.uniform(low = 0, high = 10, size=nwalkers)

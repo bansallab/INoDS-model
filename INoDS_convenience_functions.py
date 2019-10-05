@@ -61,7 +61,7 @@ def create_dynamic_network(edge_filename, complete_nodelist, edge_weights_to_bin
 		if "timestep" in header:
 			raise ValueError("Network dynamic set as False but the infection data has timesteps!")
 		n_edges = len(df.index)
-		timelist = [[num]*n_edges for num in xrange(time_max+1)]
+		timelist = [[num]*n_edges for num in range(time_max+1)]
 		timelist = [val for sublist in timelist for val in sublist]
 		df=pd.concat([df]*(time_max+1), ignore_index=True)
 		df['timestep']=timelist
@@ -131,7 +131,7 @@ def permute_network(G1, permutation):
 		orig_edges = list(G1[time].edges)
 		shuffle(orig_edges)
 		track_wt = []
-		for num in xrange(num_orig):
+		for num in range(num_orig):
 			node1, node2 = orig_edges.pop()	
 			G2[time].add_edge(node1, node2)
 			wt= G1[time][node1][node2]["weight"]
@@ -147,7 +147,7 @@ def permute_network(G1, permutation):
 			node1, node2 = np.random.choice(G2[time].nodes, 2, replace=False)
 			if not G2[time].has_edge(node1, node2): 
 					G2[time].add_edge(node1, node2)
-					if len(wtlist)==0:print ("check!!!"), permutation, num_swaps, num_orig, len(G2[time].edges)
+					if len(wtlist)==0:print ("check!!!", permutation, num_swaps, num_orig, len(G2[time].edges))
 					G2[time][node1][node2]["weight"] = wtlist.pop()
 					connections+=1
 		
@@ -182,7 +182,7 @@ def randomize_network(G1, complete_nodelist, network_dynamic = True):
 			mean_wtlist = np.mean(wtlist)
 		
 
-			for num in xrange(len(G1[time].edges())): #for each edge in G1[time]
+			for num in range(len(G1[time].edges())): #for each edge in G1[time]
 				#select two random nodes from G2[time]
 				condition_met = False # skip over node pairs that already have an edge
 				counter=0
@@ -212,7 +212,7 @@ def randomize_network(G1, complete_nodelist, network_dynamic = True):
 		mean_wtlist = np.mean(wtlist)
 		
 
-		for num in xrange(len(G1[init_time].edges())): #for each edge in G1[time]
+		for num in range(len(G1[init_time].edges())): #for each edge in G1[time]
 			#select two random nodes from G2[time]
 			condition_met = False # skip over node pairs that already have an edge
 			counter=0
@@ -292,7 +292,7 @@ def extract_health_data(health_filename, infection_type, nodelist, time_max, dia
 			sick_list_node = sorted(sick_list_node)
 			node_health[node][1]= select_sick_times(sick_list_node, node, health_data) 
 
-		if node_health[node].has_key(1):		
+		if 1 in node_health[node]:		
 			for time1, time2 in node_health[node][1]:
 				##impute the missing report of sick in health data dictionary
 				for day in range(time1, time2+1): health_data[node][day]=1
@@ -350,14 +350,14 @@ def return_contact_days_sick_nodes(node_health, seed_date, G_raw):
 
 	contact_daylist={key:{} for key in G_raw}
 	## select all nodes that were reported infected and sort
-	for node in sorted([node1 for node1 in node_health.keys() if node_health[node1].has_key(1)]):
+	for node in sorted([node1 for node1 in node_health.keys() if 1 in node_health[node1]]):
 		## removing seed nodes
 		sick_days = [(time1, time2) for (time1, time2) in sorted(node_health[node][1]) if time1!= seed_date]
 		##for all time periods when the node was reported sick
 		for time1, time2 in sick_days:
 			#default day start
 			day_start =1
-			if node_health[node].has_key(0):
+			if 0 in node_health[node]:
 				##choose all uninfected time-periods before the focal sick period
 				healthy_dates = [(healthy_day1, healthy_day2) for healthy_day1, healthy_day2 in node_health[node][0] if healthy_day2 < time1]
 				if len(healthy_dates)>0:
@@ -388,11 +388,11 @@ def return_potention_recovery_date(node_health, time_max):
 	
 	recovery_daylist = {}
 	## select all nodes that were reported infected and sort
-	for node in sorted([node1 for node1 in node_health.keys() if node_health[node1].has_key(1)]):
+	for node in sorted([node1 for node1 in node_health.keys() if 1 in node_health[node1]]):
 		## sort sick days for the focal node
 		sick_days = sorted(node_health[node][1])
 		for time1, time2 in sick_days:
-			if node_health[node].has_key(0):
+			if 0 in node_health[node]:
 				##choose all uninfected time-periods after the focal sick period
 				healthy_dates = [(healthy_day1, healthy_day2) for healthy_day1, healthy_day2 in node_health[node][0] if healthy_day2 > time1]
 				
@@ -488,7 +488,7 @@ def plot_beta_results(sampler, filename):
         ax2.legend(frameon=False, loc="best")
         ax2.set_xlabel("$beta$ posterior")
         
- 	plt.tight_layout()
+        plt.tight_layout()
         plt.savefig(filename)
 
 ########################################################################	

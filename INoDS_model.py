@@ -135,7 +135,7 @@ def return_healthy_nodelist(node_health1, seed_date, network_min_date):
 	where node1 is a node reported health and day1-day2 are the days
 	when the node is uninfected"""
 	
-	healthy_nodelist = [(node, date1) for node in node_health1 if node_health1[node].has_key(0) for date1 in [date for (hd1, hd2) in node_health1[node][0] for date in range(hd1, hd2+1)] if date1!=seed_date and date1>network_min_date]
+	healthy_nodelist = [(node, date1) for node in node_health1 if 0 in node_health1[node] for date1 in [date for (hd1, hd2) in node_health1[node][0] for date in range(hd1, hd2+1)] if date1!=seed_date and date1>network_min_date]
 	
 	return healthy_nodelist	
 	
@@ -313,7 +313,7 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	network_min_date = min(G_raw.keys())
 	if not diagnosis_lag:
 		######################################################################
-		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
+		infection_date = [(node, time1) for node in node_health if 1 in node_health[node] for (time1,time2) in node_health[node][1]]
 		
 		## remove days in infection_date if the day is either the seed_date or before network_min_date
 		infection_date = [(node, time1) for (node, time1) in infection_date if time1!=seed_date and time1 > network_min_date]
@@ -338,7 +338,8 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	backend = emcee.backends.HDFBackend(filename)
 	backend.reset(nwalkers, ndim)
 
-	sampler = emcee.EnsembleSampler(nwalkers=nwalkers, ndim=ndim, log_prob_fn = log_posterior, a=2.0, args = [data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate], backend=backend) 
+	sampler = emcee.EnsembleSampler(nwalkers=nwalkers, ndim=ndim, log_prob_fn = log_posterior, a=2.0, args = [data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate], backend=backend)
+
 
 	#Run user-specified burnin
 	if verbose:print ("burn in......")
@@ -361,7 +362,7 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 		# Using tol=0 means that we'll always get an estimate even
 		# if it isn't trustworthy
 		tau = sampler.get_autocorr_time(tol=0)
-		if verbose: print ("autocorr==="), sampler.iteration, tau
+		if verbose: print ("autocorrelation===", sampler.iteration, tau) 
 		autocorr[index] = np.mean(tau)
 		index += 1
 	    
@@ -369,7 +370,7 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 		converged = np.all(tau * 100 < sampler.iteration)
 		converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
 		if converged:
-			if verbose:print ("convergence acheived at iteration #"), sampler.iteration
+			if verbose:print ("convergence acheived at iteration #", sampler.iteration)
 			break
 		old_tau = tau
 
@@ -388,7 +389,7 @@ def perform_null_comparison(data, recovery_prob,  burnin, niter, verbose,  conta
 	##computations
 	################################################################################
 	if not diagnosis_lag:		
-		infection_date = [(node, time1) for node in node_health if node_health[node].has_key(1) for (time1,time2) in node_health[node][1]]
+		infection_date = [(node, time1) for node in node_health if 1 in node_health[node] for (time1,time2) in node_health[node][1]]
 		infection_date = sorted(infection_date)	
 		infected_strength = {network:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[network]) for time in range(time_min, time_max+1)} for node in nodelist} for network in G_raw}
 		
@@ -440,7 +441,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 	
 		CI = summary(sampler)
 		tf = open(output_filename+ "_parameter_summary.txt", "w+")
-		for num in xrange(CI.shape[0]):
+		for num in range(CI.shape[0]):
 			if num ==0:
 				print ("The median estimate and 95% credible interval for beta is " + str(round(CI[0,1],3))+" ["+ str(round(CI[0,0],3))+ "," + str(round(CI[0,2],3))+ "]")
 				tf.write("The median estimate and 95% credible interval for beta is " + str(round(CI[0,1],3))+" ["+ str(round(CI[0,0],3))+ "," + str(round(CI[0,2],3))+ "]\n")
@@ -455,7 +456,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		
 		bic  = calculate_BIC(sampler, G_raw, 0, nparam)
 		tf.write("BIC of the network hypothesis is = " + str(bic)+ "\n")
-		print ("BIC ===="), bic
+		print ("BIC ====", bic)
 		
 		tf.close()
 				
@@ -482,8 +483,8 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 			ha = sampler[0]
 			nulls = sampler[1:]
 			ext_val = [int(num>=ha) for num in nulls]
-			print ("p-value of network hypothesis"), sum(ext_val)/(1.*len(ext_val))
-			ind = [num for num in xrange(N_networks)]
+			print ("p-value of network hypothesis", sum(ext_val)/(1.*len(ext_val)))
+			ind = [num for num in range(N_networks)]
 			
 			########pretty matplotlib figure format
 			axis_font = {'fontname':'Arial', 'size':'16'}
@@ -554,8 +555,8 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		sampler, autocorr, index, nparameters = start_sampler(data1,  recovery_prob,  burnin, max_iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag = diagnosis_lag)
 		summary_type = "parameter_estimate"
 		CI = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, nparam = nparameters, autocorr_chain = autocorr, index= index)
-		best_par = np.array([CI[num,1] for num in xrange(CI.shape[0])])
-		if verbose: print ("time taken for parameter estimation (mins)==="), (time.time() - start)/60.
+		best_par = np.array([CI[num,1] for num in range(CI.shape[0])])
+		if verbose: print ("time taken for parameter estimation (mins)===", (time.time() - start)/60.)
 	#############################################################################
 	if not parameter_estimate and sum(truth)==0:
 		raise ValueError("Parameter estimate is set to False and no truth is supplied!")
@@ -577,8 +578,8 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 			
 		if isinstance(null_networks, int):
 			jaccard_list =[]
-			for num in xrange(null_networks): 
-				if verbose: print ("generating null network ="), num
+			for num in range(null_networks): 
+				if verbose: print ("generating null network =", num)
 				G_raw[num+1], jaccard = nf.randomize_network(G_raw[0], complete_nodelist,network_dynamic = is_network_dynamic)
 				jaccard_list.append(jaccard)
 	

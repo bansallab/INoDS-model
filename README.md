@@ -11,12 +11,16 @@ The details of the tool is described in
 
 Requirements for directly running the source code
 ================================================
-* [Python 2.7](http://python.org/)
-* [Emcee 3.0rc2](http://dfm.io/emcee/current/)
-* [Networkx 2.2](https://networkx.github.io/)
+* [Python 3](http://python.org/)
+* [pandas-0.25](https://pandas.pydata.org/)
+* [numpy-1.17.2](https://numpy.org/)
+* [scipy-1.3.1](https://www.scipy.org/)
+* [matplotlib-3.1.1](https://matplotlib.org/)
+* [Emcee 3.0.0](http://dfm.io/emcee/current/)
+* [Networkx 2.3](https://networkx.github.io/)
 * [Corner 2.0.1](https://pypi.python.org/pypi/corner/)
-* [h5py 2.9.0]
-* [tqdm-4.32.1]
+* [h5py](https://www.h5py.org/)
+* [tqdm-4.32.1](https://tqdm.github.io/)
 
 
 Environment

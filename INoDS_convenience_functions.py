@@ -96,11 +96,21 @@ def create_dynamic_network(edge_filename, complete_nodelist, edge_weights_to_bin
 	return G
 
 ##########################################################################
-def extract_nodelist(H):
+def extract_nodelist(edge_filename, health_filename):
 
-	nodelist = [H[time].nodes() for time in H]
-	nodelist = [item for sublist in nodelist for item in sublist]
+
+	dh = pd.read_csv(health_filename)
+	health_nodelist = dh.Node.unique()
+	health_nodelist = [str(node) for node in health_nodelist]
+	
+	df = pd.read_csv(edge_filename)
+	nodelist1 = list(df.node1.unique())
+	nodelist2 = list(df.node2.unique())
+	
+	nodelist = [str(node) for node in nodelist1] + [str(node) for node in nodelist2]+ list(health_nodelist)
 	nodelist = list(set(nodelist))
+	
+	
 
 	return nodelist
 #######################################################################

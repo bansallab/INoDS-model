@@ -4,18 +4,21 @@ matplotlib.use('Agg')
 import networkx as nx
 import csv
 from numpy import ma
-import emcee
+import dynesty
 import corner
 import copy
 import matplotlib.pyplot as plt
 import random as rnd
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 import INoDS_convenience_functions as nf
 import warnings
 import scipy.stats as ss
 import time
 import itertools
 import pandas as pd
+from dynesty import plotting as dyplot
+from dynesty.utils import resample_equal
+from dynesty import utils as dyfunc
 np.seterr(invalid='ignore')
 np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
@@ -115,9 +118,6 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## Calculate overall log likelihood                       #
 	###########################################################
 	loglike = overall_learn.sum() + overall_not_learn.sum()
-	#print ("check !!!!"), p['beta'][0], p['epsilon'][0], loglike
-	#if round(p['beta'][0], 2) == 0.10:  print ("check when beta true!!!!"), p['beta'][0], p['epsilon'][0], loglike
-	#if round(p['beta'][0], 2) == 0.01:  print ("check when beta 0.01!!!!"), p['beta'][0], p['epsilon'][0], loglike
 	if np.isinf(loglike) or np.isnan(loglike) or (loglike==0):return -np.inf
 	else: return loglike
 
@@ -206,76 +206,25 @@ def to_params(arr, null_comparison, diagnosis_lag, nsick_param, recovery_prob, p
 	return arr.view(np.dtype([('beta', np.float), 
 			('epsilon', np.float)]))
 	
-
-#####################################################################
-def autocor_checks(autocorr_chain, index, output_filename):
-	r""" Perform autocorrelation checks"""
-
-	n = 100*np.arange(1, index+1)
-	y = autocorr_chain[:index]
-	
-	ax = plt.figure().add_subplot(111)
-	ax.plot(n, n / 100.0, "--k")
-	ax.plot(n, y)
-	ax.set_xlim(0, n.max())
-	ax.set_ylim(0, y.max() + 0.1*(y.max() - y.min()))
-	ax.set_xlabel("number of steps")
-	ax.set_ylabel(r"mean $\hat{\tau}$")
-	plt.savefig(output_filename+'_autocorrelation.png')
-
-#####################################################################
-def log_evidence(sampler):
-	r""" Calculate log evidence and error"""
-
-	logls = sampler.lnlikelihood[:, :, :]
-	logls = ma.masked_array(logls, mask=logls == -np.inf)
-	mean_logls = logls.mean(axis=-1).mean(axis=-1)
-	logZ = -np.trapz(mean_logls, sampler.betas)
-	logZ2 = -np.trapz(mean_logls[::2], sampler.betas[::2])
-	logZerr = abs(logZ2 - logZ)
-	return logZ, logZerr
-
-#######################################################################
-def summary(sampler):
-    r"""Calculate mean and standard deviation of the sampler chains. """
-  
-  
-    ndim = sampler.chain.shape[-1]
-    CI = np.empty([ndim, 3])
-  
-    post_samples = sampler.chain[:,:,:].reshape((-1, ndim))
+#############################################################################
+def prior_transform(parameters):
+    """Transforms our unit cube samples `u` to a flat prior between in each variable."""
     
-    for num in range(ndim):
-        CI[num] = np.percentile(post_samples[:,num], [2.5, 50, 97.5])
-
+    #min and max for beta and epsilon
+    ##although beta and epsilon does not have an upper bound, specify an large upper bound to prevent runaway samplers
+    aprime = np.array(parameters[0:2])
+    amin = 0.0
+    amax = 10
     
-    return CI
-
-##############################################################################
-def log_prior(parameters,  diagnosis_lag, nsick_param, recovery_prob, parameter_estimate):
+    ##min max for other param estimates
+    bprime = np.array(parameters[2:])
+    bmin = 0
+    bmax = 1
     
+    a = aprime*(amax-amin) + amin  # convert back to a
+    b = bprime*(bmax-bmin) + bmin  # convert back to a
     
-    ##although beta and epsilon does not have an upper bound, specify an large upper bound to prevent runaway walkers
-    if (np.array(parameters[0:2]) <  0).any() or  (np.array(parameters[0:2]) >  1000).any(): return -np.inf
-  
-    if diagnosis_lag:
-        if (np.array(parameters[2:]) <  0.000001).any() or  (np.array(parameters[2:]) >  1).any(): return -np.inf
-
-    return 0
-
-##############################################################################
-def log_posterior(parameters, data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate):
-
-	check1 = time.time()
-	lnprior =  log_prior(parameters,  diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)
-	##if lnprior is inf then dont compute lnlike to save time
-	if np.isinf(lnprior):
-		return -np.inf
-	else:
-	
-		lnlik = log_likelihood(parameters, data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate)
-		#print ("lnlike computation time"), time.time() - check1
-		return lnprior + lnlik
+    return tuple(list(a)+list(b))
 
 #######################################################################
 def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag=False, null_comparison=False,  **kwargs3):
@@ -292,20 +241,6 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	if recovery_prob: ndim_base += nsick_param
 	ndim = ndim_base+nsick_param
 	
-	########################################### 
-	###set starting positions for the walker
-	#############################################
-	nwalkers = max(50, 4*ndim) # number of MCMC walkers
-	starting_guess = np.zeros((nwalkers, ndim))
-	##starting guess for beta  
-	starting_guess[ :, 0] = np.random.uniform(low = 0, high = 10, size=nwalkers)
-	##start epsilon close to zero
-	epsilons = np.random.power(4, size = nwalkers)
-	starting_guess[:, 1] = 1-epsilons
-	if diagnosis_lag:
-		starting_guess[:, 2: ] = np.random.uniform(low = 0.001, high = 1,size=(nwalkers, ndim-2))
-		
-		
 	################################################################################
 	##calculating infection date and infection strength outside loglik to speed up #
 	##computations
@@ -331,53 +266,14 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 
 	healthy_nodelist = return_healthy_nodelist(node_health, seed_date, network_min_date)
 	################################################################################
-	#if threads>1:
-	# Set up the backend
-	# Don't forget to clear it in case the file already exists
-	filename = "backend_file_"+output_filename
-	backend = emcee.backends.HDFBackend(filename)
-	backend.reset(nwalkers, ndim)
-
-	sampler = emcee.EnsembleSampler(nwalkers=nwalkers, ndim=ndim, log_prob_fn = log_posterior, a=2.0, args = [data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate], backend=backend)
-
-
-	#Run user-specified burnin
-	if verbose:print ("burn in......")
-	state = sampler.run_mcmc(starting_guess, burnin, progress = verbose)
-	sampler.reset()
-	#################################
-	if verbose:print ("sampling........")
-	# We'll track how the average autocorrelation time estimate changes
-	index = 0
-	autocorr = np.empty(niter)
-	# This will be useful to testing convergence
-	old_tau = np.inf
-	for sample in sampler.sample(state, iterations= niter, progress = verbose):
-
-		# Only check convergence every 100 steps
-		if sampler.iteration % 100:
-		    continue
-	    
-		# Compute the autocorrelation time so far
-		# Using tol=0 means that we'll always get an estimate even
-		# if it isn't trustworthy
-		tau = sampler.get_autocorr_time(tol=0)
-		if verbose: print ("autocorrelation===", sampler.iteration, tau) 
-		autocorr[index] = np.mean(tau)
-		index += 1
-	    
-		# Check convergence
-		converged = np.all(tau * 100 < sampler.iteration)
-		converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
-		if converged:
-			if verbose:print ("convergence acheived at iteration #", sampler.iteration)
-			break
-		old_tau = tau
-
-	##############################
-	#The resulting samples are stored as the sampler.chain property:
-	assert sampler.chain.shape == (nwalkers, sampler.iteration, ndim)
-	return sampler, autocorr, index, ndim
+	pool = Pool()
+	sampler = dynesty.DynamicNestedSampler(log_likelihood, prior_transform, ndim=ndim, nlive=1500, pool=pool, queue_size=cpu_count()-1, use_pool={'propose_point': False}, logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate] )
+	
+	# sample from the distribution
+	sampler.run_nested(print_progress=verbose)
+	
+	return sampler, ndim
+	
 #######################################################################
 def perform_null_comparison(data, recovery_prob,  burnin, niter, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag=False, null_comparison=True, **kwargs3):
 	r"""Sampling performed using emcee """
@@ -391,15 +287,12 @@ def perform_null_comparison(data, recovery_prob,  burnin, niter, verbose,  conta
 	if not diagnosis_lag:		
 		infection_date = [(node, time1) for node in node_health if 1 in node_health[node] for (time1,time2) in node_health[node][1]]
 		infection_date = sorted(infection_date)	
-		infected_strength = {network:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[network]) for time in range(time_min, time_max+1)} for node in nodelist} for network in G_raw}
-		
-		pool = None
-		threads = 1	
+		infected_strength = {network:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[network]) for time in range(time_min, time_max+1)} for node in nodelist} for network in G_raw}	
 		
 	else: 
 		infection_date = None
 		infected_strength=None	
-		threads = 8
+		
 		
 	network_min_date = min(G_raw.keys())
 	healthy_nodelist = return_healthy_nodelist(node_health, seed_date, network_min_date)	
@@ -419,60 +312,54 @@ def getstate(sampler):
         del self_dict['pool']
         return self_dict
 
-######################################################
-def calculate_BIC(sampler, G_raw, network, nparam):
-	
-	best_lglike= max(sampler.flatlnprobability)
-	#print ("best log likelihood"), best_lglike
-	highest_prob = np.argmax(sampler.lnprobability)
-	hp_loc = np.unravel_index(highest_prob, sampler.lnprobability.shape)
-	#print ("best param values"), sampler.chain[hp_loc[0], hp_loc[1]]
-	N = 0
-	for time in G_raw[network]:
-		N+= len(G_raw[network][time].nodes)
-	BIC = np.log(N)*nparam - 2*(best_lglike)
-	return BIC
-
 ##############################################################################################
-def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, autocorr_chain= None, nparam = None, index = None):
+def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, nparam = None):
 	r""" Summarize the results of the sampler"""
 
-	if summary_type =="parameter_estimate":
 	
-		CI = summary(sampler)
+	if summary_type =="parameter_estimate":
+		
+		dres = sampler.results
 		tf = open(output_filename+ "_parameter_summary.txt", "w+")
-		for num in range(CI.shape[0]):
-			if num ==0:
-				print ("The median estimate and 95% credible interval for beta is " + str(round(CI[0,1],3))+" ["+ str(round(CI[0,0],3))+ "," + str(round(CI[0,2],3))+ "]")
-				tf.write("The median estimate and 95% credible interval for beta is " + str(round(CI[0,1],3))+" ["+ str(round(CI[0,0],3))+ "," + str(round(CI[0,2],3))+ "]\n")
-			elif num ==1:
-				print ("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1,1],3))+" ["+ str(round(CI[1,0],3))+ "," + str(round(CI[1,2],3))+ "]")
-				tf.write("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1,1],3))+" ["+ str(round(CI[1,0],3))+ "," + str(round(CI[1,2],3))+ "]\n")
-			else:
-				print ("Printing median and 95% credible interval for the rest of the unknown parameters")
-				print (str(round(CI[num,1],3))+" ["+ str(round(CI[num,0],3))+ "," + str(round(CI[num,2],3))+ "]")
-				tf.write("median and 95% credible interval for the rest of the unknown parameter #" +str(num)+"\n")
-				tf.write(str(round(CI[num,1],3))+" ["+ str(round(CI[num,0],3))+ "," + str(round(CI[num,2],3))+ "]\n")
+	
+		samples = dres.samples #samples
+		weights = np.exp(dres['logwt'] - dres['logz'][-1])  # normalized weights
+		parameter_estimate = []
+		for num in range(nparam):  # for each parameter
+		    CI = dyfunc.quantile(dres['samples'][:, num], [0.025, 0.5, 0.975], weights=weights)
+		    parameter_estimate.append(CI[1])
+		    if num ==0:
+		        print ("The median estimate and 95% credible interval for beta is " + str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]")
+		        tf.write("The median estimate and 95% credible interval for beta is " + str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]\n")
+		    elif num ==1:
+		        print ("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]")
+		        tf.write("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]\n")
+		    else:
+		        print ("Printing median and 95% credible interval for the rest of the unknown parameters")
+		        print (str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]")
+		        tf.write("median and 95% credible interval for the rest of the unknown parameter #" +str(num)+"\n")
+		        tf.write(str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]\n")
 		
-		bic  = calculate_BIC(sampler, G_raw, 0, nparam)
-		tf.write("BIC of the network hypothesis is = " + str(bic)+ "\n")
-		print ("BIC ====", bic)
 		
+		dlogZdynesty = dres.logz[-1]        # value of logZ
+		dlogZerrdynesty = dres.logzerr[-1]  # estimate of the statistcal uncertainty on logZ
+	
+		# output log marginal likelihood
+		tf.write("Log marginalized of the network hypothesis is = " + str(round(dlogZdynesty,3))+ "+/- "+ str(round(dlogZerrdynesty,3))+"\n")
+		print('Log marginalised evidence (using dynamic sampler) is {} +/- {}'.format(round(dlogZdynesty,3), round(dlogZerrdynesty,3)))
+	
 		tf.close()
-				
-			
-		fig = corner.corner(sampler.flatchain[:, 0:2], quantiles=[0.16, 0.5, 0.84], labels=["$beta$", "$epsilon$"], truths= true_value, truth_color ="red")
-			
+	
+		dpostsamples = resample_equal(samples, weights)
+
+		fig = corner.corner(dpostsamples, labels=[r"$beta$", r"$epsilon$"], quantiles=[0.16, 0.5, 0.84],  truths= true_value, truth_color ="red" ,hist_kwargs={'density': True})
+
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
-		nf.plot_beta_results(sampler, filename = output_filename + "_" + summary_type +"_beta_walkers.png" )
 		
-		autocor_checks(autocorr_chain, index, output_filename)
-		#cPickle.dump(getstate(sampler), open( output_filename + "_" + summary_type +  ".p", "wb" ), protocol=2)
-		return CI
+		return parameter_estimate
 
 	#################################
 	if summary_type =="null_comparison":
-		best_par = None
 		N_networks = len(G_raw)
 		sampler_null = sampler[1:]
 		df = pd.DataFrame(sampler)
@@ -506,7 +393,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin = 1000, max_iteration=50000, truth = None, verbose=True, complete_nodelist = None, null_comparison=False,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin = 1000, max_iteration=50000, truth = None, verbose=True, complete_nodelist = None, null_comparison=True,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -524,8 +411,10 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 
 	G_raw = {}
 	## read in the dynamic network hypthosis (HA)
+	nodelist = nf.extract_nodelist(edge_filename, health_filename)
+	if complete_nodelist is None: complete_nodelist = nodelist
 	G_raw[0] = nf.create_dynamic_network(edge_filename, complete_nodelist, edge_weights_to_binary, normalize_edge_weight, is_network_dynamic, time_max)
-	nodelist = nf.extract_nodelist(G_raw[0])
+	
 	
 	
 	health_data, node_health = nf.extract_health_data(health_filename, infection_type, nodelist, time_max, diagnosis_lag)
@@ -552,10 +441,9 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 
 		if verbose: print ("estimating model parameters.........................")
 		start = time.time()
-		sampler, autocorr, index, nparameters = start_sampler(data1,  recovery_prob,  burnin, max_iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag = diagnosis_lag)
+		sampler, nparameters = start_sampler(data1,  recovery_prob,  burnin, max_iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag = diagnosis_lag)
 		summary_type = "parameter_estimate"
-		CI = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, nparam = nparameters, autocorr_chain = autocorr, index= index)
-		best_par = np.array([CI[num,1] for num in range(CI.shape[0])])
+		parameter_summary = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, nparam = nparameters)
 		if verbose: print ("time taken for parameter estimation (mins)===", (time.time() - start)/60.)
 	#############################################################################
 	if not parameter_estimate and sum(truth)==0:
@@ -564,12 +452,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	########################################################################
 	##Step 2: Perform hypothesis testing by comparing HA against null networks
 	if null_comparison:
-		if parameter_estimate:
-			
-			CI =  summary(sampler)
-			parameter_estimate = [CI[0][1], CI[1][1]]
-		else:
-			parameter_estimate = truth
+		if not parameter_estimate: parameter_summary = truth
 
 		if isinstance(null_networks, dict):
 			for (num,val) in enumerate(null_networks):
@@ -587,7 +470,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 				print ("Warning!! Randomized network resembles empircal network. May lead to inconsistent evidence")
 		
 		true_value = truth
-		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_estimate]
+		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_summary]
 
 		if diagnosis_lag:
 			#Format: contact_daylist[network_type][(node, time1, time2)] =       
@@ -602,7 +485,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	
 		logl_list = perform_null_comparison(data1, recovery_prob, burnin,  max_iteration,  verbose, contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag, null_networks=null_networks)
 		summary_type = "null_comparison"
-		summarize_sampler(logl_list, G_raw, true_value, output_filename, summary_type, autocorr_chain = None)
+		summarize_sampler(logl_list, G_raw, true_value, output_filename, summary_type)
 	##############################################################################
 
 

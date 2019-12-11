@@ -1,6 +1,7 @@
 import sys
 import os
 sys.path = [os.path.abspath(os.path.join(__file__, '..', '..')), ] + sys.path
+sys.path.append('/Users/prathasah/Dropbox (Bansal Lab)/Git-files/INoDS-model/')
 import INoDS_model as inods
 import numpy as np
 import time
@@ -13,23 +14,20 @@ import time
 ### Please edit these based on your input files
 #############################################
 #Provide the network hypothesis stored as an edgelist
-edge_filename = "data/missing_nodes_70_iter_5_edge_connections_poisson_n100_d4.csv"
+edge_filename = "data/Edge_connections_poisson_n100_d4.csv"
 # Prvide the health data
-health_filename = "data/Health_data_nolag_beta_0.01_iter_5.csv"
+health_filename = "data/Health_data_nolag_beta_0.1.csv"
 # provide filename for output files
-output_filename = "missing_nodes_70_SI_beta0.01_iter5"
+output_filename = "example_dataset"
 ###########################################
 ### Model parameters
 ###########################################
 ##do you know the true values of beta and epsilon? 
-truth = [0.05, 0]
+truth = [0.1, 0]
 
 infection_type = "SI"
 #####################################
 #### run INoDS 
 ######################################
-start = time.time()
-inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth = truth, verbose=True, diagnosis_lag=False, null_comparison=True, normalize_edge_weight=False, is_network_dynamic=True, parameter_estimate = True)
+inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth = truth, verbose=True, is_network_dynamic=True)
 
-end = time.time()
-print ("total run time (in minds)="), (end-start)/60.

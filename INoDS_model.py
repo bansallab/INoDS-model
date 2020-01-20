@@ -227,7 +227,7 @@ def prior_transform(parameters):
     return tuple(list(a)+list(b))
 
 #######################################################################
-def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag=False, null_comparison=False,  **kwargs3):
+def start_sampler(data, recovery_prob, verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag=False, null_comparison=False,  **kwargs3):
 	r"""Sampling performed using emcee """
 
 	parameter_estimate=None
@@ -275,7 +275,7 @@ def start_sampler(data, recovery_prob,  burnin, niter, verbose,  contact_daylist
 	return sampler, ndim
 	
 #######################################################################
-def perform_null_comparison(data, recovery_prob,  burnin, niter, verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag=False, null_comparison=True, **kwargs3):
+def perform_null_comparison(data, recovery_prob,  verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag=False, null_comparison=True, **kwargs3):
 	r"""Sampling performed using emcee """
 
 	G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date,parameter_estimate = data
@@ -393,7 +393,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, burnin = 1000, max_iteration=50000, truth = None, verbose=True, complete_nodelist = None, null_comparison=True,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, truth = None, verbose=True, complete_nodelist = None, null_comparison=True,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
 	r"""Main function for INoDS """
 	
 	###########################################################################
@@ -441,7 +441,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 
 		if verbose: print ("estimating model parameters.........................")
 		start = time.time()
-		sampler, nparameters = start_sampler(data1,  recovery_prob,  burnin, max_iteration, verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag = diagnosis_lag)
+		sampler, nparameters = start_sampler(data1,  recovery_prob,  verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag = diagnosis_lag)
 		summary_type = "parameter_estimate"
 		parameter_summary = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, nparam = nparameters)
 		if verbose: print ("time taken for parameter estimation (mins)===", (time.time() - start)/60.)
@@ -483,7 +483,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 
 
 	
-		logl_list = perform_null_comparison(data1, recovery_prob, burnin,  max_iteration,  verbose, contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag, null_networks=null_networks)
+		logl_list = perform_null_comparison(data1, recovery_prob,  verbose, contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag, null_networks=null_networks)
 		summary_type = "null_comparison"
 		summarize_sampler(logl_list, G_raw, true_value, output_filename, summary_type)
 	##############################################################################

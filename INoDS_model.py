@@ -145,7 +145,11 @@ def calculate_lambda1(beta1, epsilon1, infected_strength_network, focal_node, da
 	focal_node based on (a) its infected_strength at the previous time step (date-1),
 	and (b) tranmission potential unexplained by the individual's network connections."""
 	
-	return 1-(np.exp(-(beta1*infected_strength_network[focal_node][date-1] + epsilon1)))
+	try:
+		return 1-(np.exp(-(beta1*infected_strength_network[focal_node][date-1] + epsilon1)))
+	except KeyError:
+		print ("Could not calculate lambda for node and date", focal_node, date-1)
+		
 
 
 ################################################################################
@@ -253,6 +257,7 @@ def start_sampler(data, recovery_prob, verbose,  contact_daylist, max_recovery_t
 		## remove days in infection_date if the day is either the seed_date or before network_min_date
 		infection_date = [(node, time1) for (node, time1) in infection_date if time1!=seed_date and time1 > network_min_date]
 		infection_date = sorted(infection_date)
+		
 		######################################################################
 		
 		##for parameter estimate step we need data for the empirical network only
@@ -286,6 +291,7 @@ def perform_null_comparison(data, recovery_prob,  verbose,  contact_daylist, max
 	################################################################################
 	if not diagnosis_lag:		
 		infection_date = [(node, time1) for node in node_health if 1 in node_health[node] for (time1,time2) in node_health[node][1]]
+		infection_date = [(node, time1) for (node, time1) in infection_date if time1!=seed_date and time1 > network_min_date]
 		infection_date = sorted(infection_date)	
 		infected_strength = {network:{node:{time: calculate_infected_strength(node, time, health_data, G_raw[network]) for time in range(time_min, time_max+1)} for node in nodelist} for network in G_raw}	
 		
@@ -329,11 +335,11 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		    CI = dyfunc.quantile(dres['samples'][:, num], [0.025, 0.5, 0.975], weights=weights)
 		    parameter_estimate.append(CI[1])
 		    if num ==0:
-		        print ("The median estimate and 95% credible interval for beta is " + str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]")
-		        tf.write("The median estimate and 95% credible interval for beta is " + str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]\n")
+		        print ("The median estimate and 95% credible interval for beta is " + str(round(CI[1],5))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]")
+		        tf.write("The median estimate and 95% credible interval for beta is " + str(round(CI[1],5))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]\n")
 		    elif num ==1:
-		        print ("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]")
-		        tf.write("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]\n")
+		        print ("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1],5))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]")
+		        tf.write("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1],3))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]\n")
 		    else:
 		        print ("Printing median and 95% credible interval for the rest of the unknown parameters")
 		        print (str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]")

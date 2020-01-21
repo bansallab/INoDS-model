@@ -289,6 +289,7 @@ def perform_null_comparison(data, recovery_prob,  verbose,  contact_daylist, max
 	##calculating infection date and infection strength outside loglik to speed up #
 	##computations
 	################################################################################
+	network_min_date = min(G_raw.keys())
 	if not diagnosis_lag:		
 		infection_date = [(node, time1) for node in node_health if 1 in node_health[node] for (time1,time2) in node_health[node][1]]
 		infection_date = [(node, time1) for (node, time1) in infection_date if time1!=seed_date and time1 > network_min_date]
@@ -300,7 +301,7 @@ def perform_null_comparison(data, recovery_prob,  verbose,  contact_daylist, max
 		infected_strength=None	
 		
 		
-	network_min_date = min(G_raw.keys())
+	
 	healthy_nodelist = return_healthy_nodelist(node_health, seed_date, network_min_date)	
 	##############################################################################
 	

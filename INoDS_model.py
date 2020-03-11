@@ -19,6 +19,7 @@ import pandas as pd
 from dynesty import plotting as dyplot
 from dynesty.utils import resample_equal
 from dynesty import utils as dyfunc
+from dynesty.dynamicsampler import stopping_function, weight_function, _kld_error
 np.seterr(invalid='ignore')
 np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
@@ -59,7 +60,7 @@ def diagnosis_adjustment(G, network, p, nodelist,contact_daylist,  recovery_prob
 	infected_strength={}
 	infected_strength[network] = {node:{time: calculate_infected_strength(node, time, health_data_new, G) for time in G.keys()} for node in nodelist}
 
-	healthy_nodelist = return_healthy_nodelist(node_health_new)
+	healthy_nodelist = return_healthy_nodelist(node_health_new ,seed_date, network_min_date)
 
 	#create infection date list
 	infection_date = [(node, new_time1) for (node, time1, time2, new_time1, new_time2) in new_infect_recovery_time if new_time1!= seed_date and new_time1 > network_min_date]
@@ -118,6 +119,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## Calculate overall log likelihood                       #
 	###########################################################
 	loglike = overall_learn.sum() + overall_not_learn.sum()
+	#if loglike > -1000: print (p['beta'][0], p['epsilon'][0], loglike, infection_date)
 	if np.isinf(loglike) or np.isnan(loglike) or (loglike==0):return -np.inf
 	else: return loglike
 
@@ -217,7 +219,7 @@ def prior_transform(parameters):
     #min and max for beta and epsilon
     ##although beta and epsilon does not have an upper bound, specify an large upper bound to prevent runaway samplers
     aprime = np.array(parameters[0:2])
-    amin = 0.0
+    amin = 0
     amax = 10
     
     ##min max for other param estimates
@@ -272,10 +274,38 @@ def start_sampler(data, recovery_prob, verbose,  contact_daylist, max_recovery_t
 	healthy_nodelist = return_healthy_nodelist(node_health, seed_date, network_min_date)
 	################################################################################
 	pool = Pool()
-	sampler = dynesty.DynamicNestedSampler(log_likelihood, prior_transform, ndim=ndim, nlive=1500, pool=pool, queue_size=cpu_count()-1, use_pool={'propose_point': False}, logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate] )
+	if ndim<3:
+		sampler = dynesty.DynamicNestedSampler(log_likelihood, prior_transform, ndim=ndim,  pool=pool, queue_size=cpu_count()-1, use_pool={'propose_point': False}, logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate] )
+		sampler.run_nested()
 	
-	# sample from the distribution
-	sampler.run_nested(print_progress=verbose)
+	else:
+		thresh = 0.01
+		maxc = 10000
+		sampler = dynesty.DynamicNestedSampler(log_likelihood, prior_transform, ndim=ndim, pool=pool, queue_size=cpu_count()-1, use_pool={'update_bound': False}, dlogz=thresh,logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate])  
+		ncall = sampler.ncall
+		niter = sampler.it - 1
+		for results in sampler.sample_initial(maxcall=maxc):
+			ncall += results[9]
+			niter += 1
+			delta_logz = results[-1]
+			#print('dlogz ' + str(delta_logz), 'thresh ' + str(thresh), 'nc ' + str(ncall), 'niter ' + str(niter), "log", results[3])
+			pass
+		
+		stop, stop_vals = stopping_function(sampler.results, args = { 'post_thresh': 0.05}, return_vals=True)
+		while True:
+			stop, stop_vals = stopping_function(sampler.results, return_vals=True)  # evaluate stop
+			if not stop:
+			    logl_bounds = weight_function(sampler.results)  # derive bounds
+			    for results in sampler.sample_batch(nlive_new = 50,logl_bounds=logl_bounds, maxcall=15000):
+			        ncall += results[4]  # worst, ustar, vstar, loglstar, nc...
+			        niter += 1
+			        #print('nc ' + str(ncall), 'niter ' + str(niter), 'result=', results[0], results[-6:])
+			        pass
+			    sampler.combine_runs()  # add new samples to previous results
+			 
+			    break
+			
+			    
 	
 	return sampler, ndim
 	
@@ -356,7 +386,7 @@ def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type,
 		print('Log marginalised evidence (using dynamic sampler) is {} +/- {}'.format(round(dlogZdynesty,3), round(dlogZerrdynesty,3)))
 	
 		tf.close()
-	
+		
 		dpostsamples = resample_equal(samples, weights)
 
 		fig = corner.corner(dpostsamples, labels=[r"$beta$", r"$epsilon$"], quantiles=[0.16, 0.5, 0.84],  truths= true_value, truth_color ="red" ,hist_kwargs={'density': True})

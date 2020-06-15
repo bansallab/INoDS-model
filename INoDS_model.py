@@ -77,8 +77,9 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 		health_data_new = copy.deepcopy(health_data)
 		node_health_new = copy.deepcopy(node_health)		
 		p = to_params(parameters, null_comparison, diagnosis_lag, nsick_param, recovery_prob, parameter_estimate)
-		network = int(p['model'][0])
+		network =round(p['model'][0],2)
 		G = G_raw[network]
+		
 	else:
 		G_raw, health_data, node_health, nodelist, truth, time_min, time_max, seed_date  = data
 		health_data_new = copy.deepcopy(health_data)
@@ -232,6 +233,36 @@ def prior_transform(parameters):
     
     return tuple(list(a)+list(b))
 
+#############################################################################
+def prior_transform_null(parameter):
+    """Transforms our unit cube samples `u` to a flat prior between in each variable."""
+    
+    #min and max for beta and epsilon
+    ##although beta and epsilon does not have an upper bound, specify an large upper bound to prevent runaway samplers
+    aprime = parameter
+    amin = 0.1
+    amax = 1
+    
+    
+    a = aprime*(amax-amin) + amin  # convert back to a
+      
+    return tuple(a)
+
+#############################################################################
+def prior_transform_alternate(parameter):
+    """Transforms our unit cube samples `u` to a flat prior between in each variable."""
+    
+    #min and max for beta and epsilon
+    ##although beta and epsilon does not have an upper bound, specify an large upper bound to prevent runaway samplers
+    aprime = parameter
+    amin = 0.0
+    amax = 0.0
+    
+    
+    a = aprime*(amax-amin) + amin  # convert back to a
+      
+    return tuple(a)
+
 #######################################################################
 def start_sampler(data, recovery_prob, verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag=False, null_comparison=False,  **kwargs3):
 	r"""Sampling performed using emcee """
@@ -276,7 +307,7 @@ def start_sampler(data, recovery_prob, verbose,  contact_daylist, max_recovery_t
 	pool = Pool()
 	if ndim<3:
 		sampler = dynesty.DynamicNestedSampler(log_likelihood, prior_transform, ndim=ndim,  pool=pool, queue_size=cpu_count()-1, use_pool={'propose_point': False}, logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate] )
-		sampler.run_nested()
+		sampler.run_nested(print_progress = verbose)
 	
 	else:
 		thresh = 0.01
@@ -305,16 +336,15 @@ def start_sampler(data, recovery_prob, verbose,  contact_daylist, max_recovery_t
 			 
 			    break
 			
-			    
+	pool.close()
+	pool.join()		    
 	
 	return sampler, ndim
-	
 #######################################################################
-def perform_null_comparison(data, recovery_prob,  verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag=False, null_comparison=True, **kwargs3):
-	r"""Sampling performed using emcee """
-
+def perform_null_comparison(output_filename, data, recovery_prob,  verbose,  contact_daylist, max_recovery_time, nsick_param, diagnosis_lag=False, null_comparison=True, **kwargs3):
+	
 	G_raw, health_data, node_health, nodelist, true_value,  time_min, time_max, seed_date,parameter_estimate = data
-
+	
 	################################################################################
 	##calculating infection date and infection strength outside loglik to speed up #
 	##computations
@@ -332,106 +362,85 @@ def perform_null_comparison(data, recovery_prob,  verbose,  contact_daylist, max
 		
 		
 	
-	healthy_nodelist = return_healthy_nodelist(node_health, seed_date, network_min_date)	
+	healthy_nodelist = return_healthy_nodelist(node_health, seed_date, network_min_date)
 	##############################################################################
+	sampler = dynesty.NestedSampler(log_likelihood, prior_transform_alternate, ndim=1,  logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate] )
+	sampler.run_nested(print_progress=verbose)
 	
-	logl_list = []
-	for network in G_raw:
-		logl = log_likelihood(np.array([network]), data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate)	
-		
-		logl_list.append(logl)
+	dres = sampler.results
+	samples = dres.samples #samples
+	weights = np.exp(dres['logwt'] - dres['logz'][-1])  # normalized weight
+	log_evidence_alternate = dres.logz[-1]        # value of logZ
+	dlogZerrdynesty = dres.logzerr[-1]  # estimate of the statistcal uncertainty on logZ
+	#print ("evidence of alternate", dlogZdynesty, dlogZerrdynesty)
+	##############################################################################
+	sampler = dynesty.NestedSampler(log_likelihood, prior_transform_null, ndim=1,  logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate] )
+	sampler.run_nested(print_progress=verbose)
 	
-	return logl_list
-
-##############################################3
-def getstate(sampler):
-        self_dict = sampler.__dict__.copy()
-        del self_dict['pool']
-        return self_dict
+	dres = sampler.results
+	samples = dres.samples #samples
+	weights = np.exp(dres['logwt'] - dres['logz'][-1])  # normalized weight
+	log_evidence_null = dres.logz[-1]        # value of logZ
+	dlogZerrdynesty = dres.logzerr[-1]  # estimate of the statistcal uncertainty on logZ
+	
+	log_BF_alternate = log_evidence_alternate - log_evidence_null
+	print ("Log Bayes factor of alternate vs null = ", log_BF_alternate)
+	
+	file1 = open(output_filename+ "_null_hypothesis_testing.txt", "w+")
+	file1.write("Log marginal evidence for null hypothesis is " + str(round(log_evidence_null,2))+ "\n")
+	file1.write("Log marginal evidence for alternate hypothesis is " + str(round(log_evidence_alternate,2))+ "\n")
+	file1.write("Log Bayes Factor of alternate vs null = " + str(round(log_BF_alternate,2))+ "\n")
 
 ##############################################################################################
-def summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, nparam = None):
+def summarize_sampler(sampler, G_raw, true_value, output_filename, nparam = None, corner_plot=True):
 	r""" Summarize the results of the sampler"""
 
 	
-	if summary_type =="parameter_estimate":
-		
-		dres = sampler.results
-		tf = open(output_filename+ "_parameter_summary.txt", "w+")
+	summary_type = "parameter_estimate"	
+	dres = sampler.results
+	tf = open(output_filename+ "_parameter_summary.txt", "w+")
+
+	samples = dres.samples #samples
+	weights = np.exp(dres['logwt'] - dres['logz'][-1])  # normalized weights
+	parameter_estimate = []
+	for num in range(nparam):  # for each parameter
+	    CI = dyfunc.quantile(dres['samples'][:, num], [0.025, 0.5, 0.975], weights=weights)
+	    parameter_estimate.append(CI[1])
+	    if num ==0:
+	        print ("The median estimate and 95% credible interval for beta is " + str(round(CI[1],5))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]")
+	        tf.write("The median estimate and 95% credible interval for beta is " + str(round(CI[1],5))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]\n")
+	    elif num ==1:
+	        print ("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1],5))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]")
+	        tf.write("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1],3))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]\n")
+	    else:
+	        print ("Printing median and 95% credible interval for the rest of the unknown parameters")
+	        print (str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]")
+	        tf.write("median and 95% credible interval for the rest of the unknown parameter #" +str(num)+"\n")
+	        tf.write(str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]\n")
 	
-		samples = dres.samples #samples
-		weights = np.exp(dres['logwt'] - dres['logz'][-1])  # normalized weights
-		parameter_estimate = []
-		for num in range(nparam):  # for each parameter
-		    CI = dyfunc.quantile(dres['samples'][:, num], [0.025, 0.5, 0.975], weights=weights)
-		    parameter_estimate.append(CI[1])
-		    if num ==0:
-		        print ("The median estimate and 95% credible interval for beta is " + str(round(CI[1],5))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]")
-		        tf.write("The median estimate and 95% credible interval for beta is " + str(round(CI[1],5))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]\n")
-		    elif num ==1:
-		        print ("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1],5))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]")
-		        tf.write("The median estimate and 95% credible interval for epsilon is " + str(round(CI[1],3))+" ["+ str(round(CI[0],5))+ "," + str(round(CI[2],5))+ "]\n")
-		    else:
-		        print ("Printing median and 95% credible interval for the rest of the unknown parameters")
-		        print (str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]")
-		        tf.write("median and 95% credible interval for the rest of the unknown parameter #" +str(num)+"\n")
-		        tf.write(str(round(CI[1],3))+" ["+ str(round(CI[0],3))+ "," + str(round(CI[2],3))+ "]\n")
-		
-		
-		dlogZdynesty = dres.logz[-1]        # value of logZ
-		dlogZerrdynesty = dres.logzerr[-1]  # estimate of the statistcal uncertainty on logZ
 	
-		# output log marginal likelihood
-		tf.write("Log marginalized of the network hypothesis is = " + str(round(dlogZdynesty,3))+ "+/- "+ str(round(dlogZerrdynesty,3))+"\n")
-		print('Log marginalised evidence (using dynamic sampler) is {} +/- {}'.format(round(dlogZdynesty,3), round(dlogZerrdynesty,3)))
+	dlogZdynesty = dres.logz[-1]        # value of logZ
+	dlogZerrdynesty = dres.logzerr[-1]  # estimate of the statistcal uncertainty on logZ
+
+	# output log marginal likelihood
+	tf.write("Log marginalized evidence of the network hypothesis is = " + str(round(dlogZdynesty,3))+ "+/- "+ str(round(dlogZerrdynesty,3))+"\n")
+	print('Log marginalised evidence (using dynamic sampler) is {} +/- {}'.format(round(dlogZdynesty,3), round(dlogZerrdynesty,3)))
+
+	tf.close()
 	
-		tf.close()
-		
+	if corner_plot:
 		dpostsamples = resample_equal(samples, weights)
-
+	
 		fig = corner.corner(dpostsamples, labels=[r"$beta$", r"$epsilon$"], quantiles=[0.16, 0.5, 0.84],  truths= true_value, truth_color ="red" ,hist_kwargs={'density': True})
-
+	
 		fig.savefig(output_filename + "_" + summary_type +"_posterior.png")
-		
-		return parameter_estimate
-
-	#################################
-	if summary_type =="null_comparison":
-		N_networks = len(G_raw)
-		sampler_null = sampler[1:]
-		df = pd.DataFrame(sampler)
-		file_name = output_filename + "_" + summary_type +  ".csv"
-		df.to_csv(file_name)
-
-		if N_networks>1:
-			ha = sampler[0]
-			nulls = sampler[1:]
-			ext_val = [int(num>=ha) for num in nulls]
-			print ("p-value of network hypothesis", sum(ext_val)/(1.*len(ext_val)))
-			ind = [num for num in range(N_networks)]
-			
-			########pretty matplotlib figure format
-			axis_font = {'fontname':'Arial', 'size':'16'}
-			plt.clf()
-			plt.figure(figsize=(8, 10))    
-			plt.gca().spines["top"].set_visible(False)    
-			plt.gca().spines["right"].set_visible(False)    
-			plt.gca().get_xaxis().tick_bottom()    
-			plt.gca().get_yaxis().tick_left()   
-			##############################
-			hist = np.histogram(sampler, 10)[0]
-			plt.hist(sampler[1:], bins=10, normed=False, color="#969696")
-			plt.axvline(x=sampler[0], ymin=0, ymax=max(hist), linewidth=2, color='#e41a1c', label ="Network hypothesis")
-			plt.xlabel("Log-likelihood", **axis_font)
-			plt.ylabel("Frequency", **axis_font)
-			plt.legend()
-			plt.legend(frameon=False)
-			plt.savefig(output_filename + "_" + summary_type +"_posterior.png")
-
+	
+	return parameter_estimate
 	
 ######################################################################33
-def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type,  null_networks = 500, truth = None, verbose=True, complete_nodelist = None, null_comparison=True,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True):
+def run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth = None, verbose=True, complete_nodelist = None, null_comparison=True,  edge_weights_to_binary=False, normalize_edge_weight=False, diagnosis_lag=False, is_network_dynamic=True, parameter_estimate=True, draw_corner_plot=True):
 	r"""Main function for INoDS """
+	
 	
 	###########################################################################
 	##health_data is the raw dictionary. The structure of dictionary:         # 
@@ -462,6 +471,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	contact_daylist = None
 	max_recovery_time = None	
 	nsick_param = 0
+	
 	##########################################################################
 	if parameter_estimate:
 	##Step 1: Estimate unknown parameters of network hypothesis HA.
@@ -479,8 +489,8 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		if verbose: print ("estimating model parameters.........................")
 		start = time.time()
 		sampler, nparameters = start_sampler(data1,  recovery_prob,  verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag = diagnosis_lag)
-		summary_type = "parameter_estimate"
-		parameter_summary = summarize_sampler(sampler, G_raw, true_value, output_filename, summary_type, nparam = nparameters)
+		
+		parameter_summary = summarize_sampler(sampler, G_raw, true_value, output_filename, nparam = nparameters, corner_plot =  draw_corner_plot)
 		if verbose: print ("time taken for parameter estimation (mins)===", (time.time() - start)/60.)
 	#############################################################################
 	if not parameter_estimate and sum(truth)==0:
@@ -490,22 +500,15 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 	##Step 2: Perform hypothesis testing by comparing HA against null networks
 	if null_comparison:
 		if not parameter_estimate: parameter_summary = truth
-
-		if isinstance(null_networks, dict):
-			for (num,val) in enumerate(null_networks):
-				G_raw[num+1] = null_networks[val]	
-			
-			
-		if isinstance(null_networks, int):
-			jaccard_list =[]
-			for num in range(null_networks): 
-				if verbose: print ("generating null network =", num)
-				G_raw[num+1], jaccard = nf.randomize_network(G_raw[0], complete_nodelist,network_dynamic = is_network_dynamic)
-				jaccard_list.append(jaccard)
 	
-			if np.mean(jaccard_list)>0.4: 
-				print ("Warning!! Randomized network resembles empircal network. May lead to inconsistent evidence")
+			
+			
+		for num in [round(a,2) for a in np.arange(0.1,1.01, 0.01)]: 
+			if verbose: print ("generating null network =", num)
+			G_raw[num] = nf.permute_network(G_raw[0], num, complete_nodelist,network_dynamic = is_network_dynamic)
 		
+	
+			
 		true_value = truth
 		data1 = [G_raw, health_data, node_health, nodelist, true_value, time_min, time_max, seed_date, parameter_summary]
 
@@ -519,10 +522,9 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		if verbose: print ("comparing network hypothesis with null..........................")
 
 
-	
-		logl_list = perform_null_comparison(data1, recovery_prob,  verbose, contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag, null_networks=null_networks)
+		perform_null_comparison(output_filename, data1, recovery_prob,  verbose, contact_daylist, max_recovery_time, nsick_param, diagnosis_lag = diagnosis_lag)
 		summary_type = "null_comparison"
-		summarize_sampler(logl_list, G_raw, true_value, output_filename, summary_type)
+		
 	##############################################################################
 
 

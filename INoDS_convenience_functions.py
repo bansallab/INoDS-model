@@ -129,41 +129,89 @@ def check_edge_weights(G):
 		print ("Warning: Code convergence is better if the edge weights are normalized at each time step" )
 
 #################################################################
-def permute_network(G1, permutation):
+def permute_network(G1, permutation_level, complete_nodelist=None, network_dynamic = True):
 	
 	G2 = {}
-	jaccard_list = []
-	for time in G1.keys():
-		G2[time] = nx.Graph()
-		G2[time].add_nodes_from(G1[time].nodes)
-		num_swaps = int(permutation*len(G1[time].edges))
-		num_orig = len(G1[time].edges) - num_swaps
-		orig_edges = list(G1[time].edges)
+	if network_dynamic: 
+		
+		for time in G1.keys():
+			G2[time] = nx.Graph()
+			if complete_nodelist is not None:
+				complete_nodelist = [str(num) for num in complete_nodelist]
+				G2[time].add_nodes_from(complete_nodelist)
+			else: G2[time].add_nodes_from(list(G1[time].nodes))
+			wtlist = [G1[time][node1][node2]["weight"] for node1, node2 in list(G1[time].edges)]
+			edge_size = len(G1[time].edges())
+			mean_wtlist = np.mean(wtlist)
+			num_swaps = int(permutation_level*len(G1[time].edges))
+			num_orig = len(G1[time].edges) - num_swaps
+			orig_edges = list(G1[time].edges)
+			shuffle(orig_edges)
+			## copy edge connections
+			G2[time].add_edges_from(orig_edges[:num_orig], weight = mean_wtlist)
+			
+			for num in range(num_swaps): 
+				condition_met = False # skip over node pairs that already have an edge
+				counter = 0
+				while not condition_met:
+					node1, node2 = np.random.choice(G2[time].nodes, 2, replace=False)
+					if not (G2[time].has_edge(node1, node2) and G1[time].has_edge(node1,node2)):
+							condition_met = True
+							G2[time].add_edge(node1, node2)
+							G2[time][node1][node2]["weight"] = mean_wtlist
+					else: counter+=1
+					
+					if counter > 2* edge_size and not (G2[time].has_edge(node1, node2) and G1[time].has_edge(node1,node2)):
+						##Give up after 2*#edges attempts
+						condition_met=True
+						G2[time].add_edge(node1, node2)
+						G2[time][node1][node2]["weight"] = mean_wtlist
+						print ("Warning: permutation level not acheived! Could be due to high edge density of the observed network")
+						
+							
+						
+	else:
+		init_time = min([time1 for time1 in G1])
+		G2[init_time] = nx.Graph()
+		if complete_nodelist is not None:
+				complete_nodelist = [str(num) for num in complete_nodelist]
+				G2[init_time].add_nodes_from(complete_nodelist)
+		else: G2[init_time].add_nodes_from(G1[init_time].nodes())
+		edge_size = len(G1[init_time].edges())
+		wtlist = [G1[init_time][node1][node2]["weight"] for node1, node2 in G1[init_time].edges()]
+		mean_wtlist = np.mean(wtlist)
+		num_swaps = int(permutation_level*len(G1[init_time].edges))
+		num_orig = len(G1[init_time].edges) - num_swaps
+		orig_edges = list(G1[init_time].edges)
 		shuffle(orig_edges)
-		track_wt = []
-		for num in range(num_orig):
-			node1, node2 = orig_edges.pop()	
-			G2[time].add_edge(node1, node2)
-			wt= G1[time][node1][node2]["weight"]
-			G2[time][node1][node2]["weight"] = wt 
-			track_wt.append(wt)
-		wtlist = [G1[time][node1][node2]["weight"] for node1, node2 in G1[time].edges]
-		#remove edge weights that have been assigned
-		for wt in track_wt: wtlist.remove(wt)
+		## copy edge connections
+		G2[init_time].add_edges_from(orig_edges[:num_orig], weight = mean_wtlist)
 		
 
-		connections = 0 # skip over node pairs that already have an edge
-		while connections <num_swaps:
-			node1, node2 = np.random.choice(G2[time].nodes, 2, replace=False)
-			if not G2[time].has_edge(node1, node2): 
-					G2[time].add_edge(node1, node2)
-					if len(wtlist)==0:print ("check!!!", permutation, num_swaps, num_orig, len(G2[time].edges))
-					G2[time][node1][node2]["weight"] = wtlist.pop()
-					connections+=1
+		for num in range(num_swaps): 
+			#select two random nodes from G2[time]
+			condition_met = False # skip over node pairs that already have an edge
+			counter=0
+			while not condition_met:
+				node1, node2 = np.random.choice(G2[init_time].nodes(), 2, replace=False)
+				if not (G2[init_time].has_edge(node1, node2) and G1[init_time].has_edge(node1,node2)): 
+					condition_met = True
+					G2[init_time].add_edge(node1, node2)
+					G2[init_time][node1][node2]["weight"] = mean_wtlist
+				
+				else:counter+=1
+				if counter > 4* edge_size and not (G2[init_time].has_edge(node1, node2) and G1[init_time].has_edge(node1,node2)):
+				##Give up after 2*#edges attempts
+					condition_met=True
+					G2[init_time].add_edge(node1, node2)
+					G2[init_time][node1][node2]["weight"] = mean_wtlist
+					print ("Warning: permutation level not acheived! Could be due to high edge density of the observed network")
+
+		time_list = [time1 for time1 in G1 if time1 != init_time]
+		for time1 in time_list:
+			G2[time1] = G2[init_time].copy()
 		
-		jaccard_list.append(calculate_jaccard(G1[time], G2[time]))
-	#print ("random graph check"), permutation, np.mean(jaccard_list)
-			
+		
 	return G2 
 
 #############################################################################

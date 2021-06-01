@@ -24,6 +24,10 @@ np.seterr(invalid='ignore')
 np.seterr(divide='ignore')
 warnings.simplefilter("ignore")
 warnings.warn("deprecated", DeprecationWarning)
+
+
+
+
 #########################################################################
 def diagnosis_adjustment(G, network, p, nodelist,contact_daylist,  recovery_prob, max_recovery_time, node_health_new, health_data_new, seed_date, network_min_date):
 
@@ -308,6 +312,7 @@ def start_sampler(data, recovery_prob, verbose,  contact_daylist, max_recovery_t
 	if ndim<3:
 		sampler = dynesty.DynamicNestedSampler(log_likelihood, prior_transform, ndim=ndim,  pool=pool, queue_size=cpu_count()-1, use_pool={'propose_point': False}, logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate] )
 		sampler.run_nested(print_progress = verbose)
+		
 	
 	else:
 		thresh = 0.01
@@ -330,7 +335,6 @@ def start_sampler(data, recovery_prob, verbose,  contact_daylist, max_recovery_t
 			    for results in sampler.sample_batch(nlive_new = 50,logl_bounds=logl_bounds, maxcall=15000):
 			        ncall += results[4]  # worst, ustar, vstar, loglstar, nc...
 			        niter += 1
-			        #print('nc ' + str(ncall), 'niter ' + str(niter), 'result=', results[0], results[-6:])
 			        pass
 			    sampler.combine_runs()  # add new samples to previous results
 			 
@@ -490,6 +494,7 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		start = time.time()
 		sampler, nparameters = start_sampler(data1,  recovery_prob,  verbose,  contact_daylist, max_recovery_time, nsick_param, output_filename, diagnosis_lag = diagnosis_lag)
 		
+		
 		parameter_summary = summarize_sampler(sampler, G_raw, true_value, output_filename, nparam = nparameters, corner_plot =  draw_corner_plot)
 		if verbose: print ("time taken for parameter estimation (mins)===", (time.time() - start)/60.)
 	#############################################################################
@@ -526,11 +531,11 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		summary_type = "null_comparison"
 		
 	##############################################################################
-
-
+	
 ######################################################################33
 if __name__ == "__main__":
-
-	print ("run the run_inods.py file")
-
 	
+	print ("run the run_inods.py file")	
+	
+	
+		

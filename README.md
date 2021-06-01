@@ -16,7 +16,7 @@ Requirements for directly running the source code
 * [numpy-1.17.2](https://numpy.org/)
 * [scipy-1.3.1](https://www.scipy.org/)
 * [matplotlib-3.1.1](https://matplotlib.org/)
-* [Emcee 3.0.0](http://dfm.io/emcee/current/)
+* [dynesty1.1](https://dynesty.readthedocs.io/en/latest/)
 * [Networkx 2.3](https://networkx.github.io/)
 * [Corner 2.0.1](https://pypi.python.org/pypi/corner/)
 * [h5py](https://www.h5py.org/)

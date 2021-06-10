@@ -124,7 +124,7 @@ def log_likelihood(parameters, data, infection_date, infected_strength, healthy_
 	## Calculate overall log likelihood                       #
 	###########################################################
 	loglike = overall_learn.sum() + overall_not_learn.sum()
-	#if loglike > -1000: print (p['beta'][0], p['epsilon'][0], loglike, infection_date)
+	#print (p['beta'][0], p['epsilon'][0], network, loglike),
 	if np.isinf(loglike) or np.isnan(loglike) or (loglike==0):return -np.inf
 	else: return loglike
 
@@ -247,9 +247,8 @@ def prior_transform_null(parameter):
     amin = 0.1
     amax = 1
     
-    
     a = aprime*(amax-amin) + amin  # convert back to a
-      
+    
     return tuple(a)
 
 #############################################################################
@@ -260,11 +259,11 @@ def prior_transform_alternate(parameter):
     ##although beta and epsilon does not have an upper bound, specify an large upper bound to prevent runaway samplers
     aprime = parameter
     amin = 0.0
-    amax = 0.0
+    amax = 0.01
     
     
     a = aprime*(amax-amin) + amin  # convert back to a
-      
+    #print (parameter, a)
     return tuple(a)
 
 #######################################################################
@@ -368,18 +367,20 @@ def perform_null_comparison(output_filename, data, recovery_prob,  verbose,  con
 	
 	healthy_nodelist = return_healthy_nodelist(node_health, seed_date, network_min_date)
 	##############################################################################
-	sampler = dynesty.NestedSampler(log_likelihood, prior_transform_alternate, ndim=1,  logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate] )
-	sampler.run_nested(print_progress=verbose)
+	
+	sampler = dynesty.NestedSampler(log_likelihood, prior_transform_alternate, ndim=1,   logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate], bound="none", walks=500)
+	sampler.run_nested(print_progress=False, dlogz=5,maxcall=5000)
 	
 	dres = sampler.results
 	samples = dres.samples #samples
 	weights = np.exp(dres['logwt'] - dres['logz'][-1])  # normalized weight
 	log_evidence_alternate = dres.logz[-1]        # value of logZ
 	dlogZerrdynesty = dres.logzerr[-1]  # estimate of the statistcal uncertainty on logZ
-	#print ("evidence of alternate", dlogZdynesty, dlogZerrdynesty)
+	print ("evidence of alternate", log_evidence_alternate)
+	
 	##############################################################################
-	sampler = dynesty.NestedSampler(log_likelihood, prior_transform_null, ndim=1,  logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate] )
-	sampler.run_nested(print_progress=verbose)
+	sampler = dynesty.NestedSampler(log_likelihood, prior_transform_null, ndim=1,  logl_args =[data, infection_date, infected_strength, healthy_nodelist, null_comparison, diagnosis_lag,  recovery_prob, nsick_param, contact_daylist, max_recovery_time, network_min_date, parameter_estimate], bound="none", walks=500)
+	sampler.run_nested(print_progress=False,dlogz=5, maxcall=5000)
 	
 	dres = sampler.results
 	samples = dres.samples #samples
@@ -387,7 +388,9 @@ def perform_null_comparison(output_filename, data, recovery_prob,  verbose,  con
 	log_evidence_null = dres.logz[-1]        # value of logZ
 	dlogZerrdynesty = dres.logzerr[-1]  # estimate of the statistcal uncertainty on logZ
 	
+	print ("log_evidence_null ", log_evidence_null )
 	log_BF_alternate = log_evidence_alternate - log_evidence_null
+	
 	print ("Log Bayes factor of alternate vs null = ", log_BF_alternate)
 	
 	file1 = open(output_filename+ "_null_hypothesis_testing.txt", "w+")
@@ -507,9 +510,15 @@ def run_inods_sampler(edge_filename, health_filename, output_filename, infection
 		if not parameter_estimate: parameter_summary = truth
 	
 			
+		#generate few for testing H_a
+		for num in [round(a,2) for a in np.arange(0,0.02, 0.01)]:
+			G_raw[num] = nf.permute_network(G_raw[0], num, complete_nodelist,network_dynamic = is_network_dynamic)
+	
+		for num in [round(a,2) for a in np.arange(0.1,1.01, 0.01)]:
 			
-		for num in [round(a,2) for a in np.arange(0.1,1.01, 0.01)]: 
+			
 			if verbose: print ("generating null network =", num)
+			
 			G_raw[num] = nf.permute_network(G_raw[0], num, complete_nodelist,network_dynamic = is_network_dynamic)
 		
 	

@@ -31,5 +31,5 @@ if __name__ == '__main__':
     #### run INoDS 
     ######################################
 
-    inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth = truth, verbose=True, is_network_dynamic=True)
+    inods.run_inods_sampler(edge_filename, health_filename, output_filename, infection_type, truth = truth, verbose=True, is_network_dynamic=True,  parameter_estimate=True)
 
